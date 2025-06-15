@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "ad5522.h": "c",
+        "main.h": "c"
+    },
+    "cortex-debug.variableUseNaturalFormat": false
+}
