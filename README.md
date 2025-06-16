@@ -22,6 +22,12 @@ SMU-Mini原理图：Document\SCH_Schematic1_2025-06-07.pdf
 
 在 [Dave Erickson](https://www.djerickson.com/quad-smu/) 的基础上修改了 ADC 采样和通讯隔离芯片。
 
+### 改动：
+
+STM32 开发板：
+
+MOSI（PA6） 通过一个 1k 的电阻连接到 ADC_READY_Pin（PB11）
+
 ## 软件
 
 开发环境：`Windows` `VScode` `Stm32 VS Code Extension` 安装方式请参考 [st.com](https://www.st.com/content/st_com/en/campaigns/stm32-vs-code-extension-z11.html)
@@ -40,10 +46,15 @@ SMU-Mini原理图：Document\SCH_Schematic1_2025-06-07.pdf
 
 ![test_FVMI_5V](Document/img/test_FVMI_5V.jpg)
 
+* Stm32 和 AD7190 通讯，可以读取到 AD7190 AIN1 对 AINCOM 的 AD 值。
+
 ### 待开发
 
+踩坑记录 Document/README_CN.md
+
 * 完善与 AD5522 的通讯
-* 编写与 AD7190 的通讯
+* 完善与 AD7190 的通讯
+* 同时与上面的两个芯片通讯，并提高通讯速率
 
 
 ## 感谢
@@ -51,3 +62,5 @@ SMU-Mini原理图：Document\SCH_Schematic1_2025-06-07.pdf
 https://www.djerickson.com/quad-smu/
 
 https://github.com/zifangzhao/PMU_controller/blob/H7A3/Core/Src/AD5522.c
+
+https://github.com/msthrax/AD7190/tree/master

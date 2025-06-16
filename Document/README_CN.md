@@ -111,3 +111,20 @@ AD5522_ReadReg(&h_PMU, PMU_REG_RD|PMU_CH_0|PMU_DACREG_ADDR_FIN_5UA_M, &buf);
 
 ![DSView](img/dsview.png)
 
+
+## AD7190 通讯
+
+![spi_7190_rxtx](img/spi_7190_rxtx.png)
+
+时序和 AD5522 不太一样，应该是：
+
+CPOL = 1
+
+CPHA = 1
+
+故需要单独写一个 SPI 外设的初始化函数，仅修改 MX_SPI1_Init 中的：
+
+```c
+hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
+```
+

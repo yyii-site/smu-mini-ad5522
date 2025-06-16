@@ -63,6 +63,8 @@ void Error_Handler(void);
 #define ADC_CS_GPIO_Port GPIOC
 #define SMU_BUSY_Pin GPIO_PIN_2
 #define SMU_BUSY_GPIO_Port GPIOB
+#define ADC_READY_Pin GPIO_PIN_11
+#define ADC_READY_GPIO_Port GPIOB
 #define LED3_Pin GPIO_PIN_13
 #define LED3_GPIO_Port GPIOB
 #define LED4_Pin GPIO_PIN_14

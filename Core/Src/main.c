@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "AD5522.h"
+#include "ad7190.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -66,7 +67,38 @@ const osTimerAttr_t myTimer01_attributes = {
   .name = "myTimer01"
 };
 /* USER CODE BEGIN PV */
+static void AD7190_SPI1_Init(void)
+{
 
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+
+}
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,6 +119,50 @@ __IO uint16_t ADC_ptr = 0;
 double input_range[2] = {0,3.3/3.3*65535};
 double output_Irange[2] = {-150e-6,150e-6};
 double output_Vrange[2] = {0,0.6};
+
+
+void AD7190_CS_Low() {
+  HAL_GPIO_WritePin(ADC_CS_GPIO_Port, ADC_CS_Pin, GPIO_PIN_RESET);
+}
+void AD7190_CS_High() {
+  HAL_GPIO_WritePin(ADC_CS_GPIO_Port, ADC_CS_Pin, GPIO_PIN_SET);
+}
+void AD7190_Spi_WriteByte(uint8_t cmd) {
+  int resp = HAL_SPI_Transmit(&hspi1, &cmd,1,1000);
+}
+uint8_t AD7190_Spi_ReadByte() {
+  uint8_t val=0;
+  int resp = HAL_SPI_TransmitReceive(&hspi1, 0x00, &val,1,1000);
+  return val;
+}
+void AD7190_Spi_Write(uint8_t* cmd, uint16_t len){
+  int resp = HAL_SPI_Transmit(&hspi1, cmd, len, 1000);
+}
+void AD7190_Spi_Read(uint8_t* cmd, uint16_t len) {
+  for (int i=0;i<len;i++) {
+    uint8_t send = cmd[i];
+    uint8_t read = 0;
+    int resp = HAL_SPI_TransmitReceive(&hspi1, &send, &read, 1, 1000);
+    cmd[i] = read;
+  }
+}
+bool AD7190_CheckDataReadyPin(void) {
+  return HAL_GPIO_ReadPin(ADC_READY_GPIO_Port, ADC_READY_Pin);
+}
+void AD7190_Delay_ms(uint32_t ms) {
+  osDelay(ms);
+}
+AD7190_SpiDriver_Typedef h_ad7190 = {
+  .AD7190_CS_Low = AD7190_CS_Low,
+  .AD7190_CS_High = AD7190_CS_High,
+  .AD7190_Spi_WriteByte = AD7190_Spi_WriteByte,
+  .AD7190_Spi_ReadByte = AD7190_Spi_ReadByte,
+  .AD7190_Spi_Write = AD7190_Spi_Write,
+  .AD7190_Spi_Read = AD7190_Spi_Read,
+  .AD7190_CheckDataReadyPin = AD7190_CheckDataReadyPin,
+  .AD7190_Delay_ms = AD7190_Delay_ms
+};
+uint32_t adc_val[4];
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -123,7 +199,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_SPI1_Init();
+  // MX_SPI1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
@@ -331,11 +407,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : SMU_BUSY_Pin */
-  GPIO_InitStruct.Pin = SMU_BUSY_Pin;
+  /*Configure GPIO pins : SMU_BUSY_Pin ADC_READY_Pin */
+  GPIO_InitStruct.Pin = SMU_BUSY_Pin|ADC_READY_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(SMU_BUSY_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED3_Pin LED4_Pin LED5_Pin */
   GPIO_InitStruct.Pin = LED3_Pin|LED4_Pin|LED5_Pin;
@@ -394,23 +470,38 @@ void StartDefaultTask(void *argument)
 void StartTask01(void *argument)
 {
   /* USER CODE BEGIN StartTask01 */
-  AD5522_init(&h_PMU,&hspi1,5.0);
-  AD5522_Calibrate(&h_PMU);
-	AD5522_StartHiZMV(&h_PMU,PMU_CH_2|PMU_CH_3) ;//configure CH2/3 to monitor voltage only
-	//AD5522_SetClamp(&h_PMU,PMU_CH_0|PMU_CH_1,32767-30000,32767+30000,0,65535,PMU_DAC_SCALEID_EXT);
-	AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-2e-3,2e-3,-0.1,0.5,PMU_DAC_SCALEID_200UA);
+  AD7190_SPI1_Init();
+  AD7190_Init(&h_ad7190);
+  AD7190_RangeSetup(&h_ad7190, 1, AD7190_CONF_GAIN_1);
+  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN1P_AINCOM);
+  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN2P_AINCOM);
+  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN3P_AINCOM);
+  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN4P_AINCOM);
+  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN1P_AINCOM);
+  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN2P_AINCOM);
+  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN3P_AINCOM);
+  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN4P_AINCOM);
+
+  AD7190_ChannelSelect(&h_ad7190, AD7190_CH_AIN1P_AINCOM);
+  adc_val[0] = AD7190_ContinuousReadAvg(&h_ad7190, 10);
+
+  // AD5522_init(&h_PMU,&hspi1,5.0);
+  // AD5522_Calibrate(&h_PMU);
+	// AD5522_StartHiZMV(&h_PMU,PMU_CH_2|PMU_CH_3) ;//configure CH2/3 to monitor voltage only
+	// //AD5522_SetClamp(&h_PMU,PMU_CH_0|PMU_CH_1,32767-30000,32767+30000,0,65535,PMU_DAC_SCALEID_EXT);
+	// AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-2e-3,2e-3,-0.1,0.5,PMU_DAC_SCALEID_200UA);
 	
-	AD5522_StartFVMI(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_2MA); 
-	//AD5522_StartFIMV(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_200UA);
+	// AD5522_StartFVMI(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_2MA); 
+	// //AD5522_StartFIMV(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_200UA);
 
   __IO uint16_t value = 0;
 	const uint16_t test_len = 3;
-	__IO uint16_t value_inc = 0;
-	//uint16_t test_sig[5] = {0,32768,65535};
-	float    test_float_V[3] = {-5,0,5};
-	float    test_float_I[3] = {1e-3,0,-1e-3};
+	// __IO uint16_t value_inc = 0;
+	// //uint16_t test_sig[5] = {0,32768,65535};
+	// float    test_float_V[3] = {-5,0,5};
+	// float    test_float_I[3] = {1e-3,0,-1e-3};
 
-  AD5522_SetOutputVoltage_float(&h_PMU,PMU_CH_0|PMU_CH_1,5);
+  // AD5522_SetOutputVoltage_float(&h_PMU,PMU_CH_0|PMU_CH_1,5);
 
   /* Infinite loop */
   for(;;)
@@ -424,6 +515,8 @@ void StartTask01(void *argument)
 		//AD5522_SetOutputVoltage_float(&h_PMU,PMU_CH_0|PMU_CH_1,test_float_V[value]);
 		//AD5522_SetOutputCurrent_float(&h_PMU,PMU_CH_0|PMU_CH_1,test_float_I[value]);
 		//AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-10e-3,test_float_I[value],-0.6,0.6,PMU_DAC_SCALEID_2MA);
+
+    adc_val[0] = AD7190_SingleConversion(&h_ad7190);
 		value+=1;
 		if(value >= test_len)
 			value = 0;
