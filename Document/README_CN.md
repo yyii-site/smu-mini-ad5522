@@ -128,3 +128,17 @@ CPHA = 1
 hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
 ```
 
+## 同时与 AD5522 和 AD7190 通讯
+
+`AD7190_SPI1_Init();` 函数完成后 sclk 的电平还是为低，此时并不能直接和 AD7190 通讯，需要发送一次数据将 sclk 的电平转为高以后再去和 AD7190 通讯
+
+```c
+// 将 clk 的电平切换到 High
+void SPI_Send_Nop() {
+  const uint8_t nop_data = 0;
+  HAL_SPI_Transmit(&hspi1, &nop_data, 1, 1000);
+}
+```
+![AD7190_SPI1_Init](img/AD7190_SPI1_Init.png)
+
+![ad7190_AutoContinueMode_read](img/ad7190_AutoContinueMode_read.png)

@@ -163,4 +163,16 @@ uint32_t AD7190_ContinuousReadAvg(AD7190_SpiDriver_Typedef* AD7190_SpiDriver, ui
 /*! Read data from temperature sensor and converts it to Celsius degrees. */
 uint32_t AD7190_TemperatureRead(AD7190_SpiDriver_Typedef* AD7190_SpiDriver);
 
+/*! Selects all channel to be enabled.  (+:AIN1~4 -:AINCOM) */
+void AD7190_ChannelSelectAll(AD7190_SpiDriver_Typedef* AD7190_SpiDriver);
+
+/*! Set CREAD bit 设置连续读取数据寄存器 */
+void AD7190_AutoContinueMode(AD7190_SpiDriver_Typedef* AD7190_SpiDriver, bool en);
+
+/*! Set DAT_STA bit 启用后 DOUT 可以输出：数据寄存器+状态寄存器 */
+void AD7190_ContinueMode_StatusAfterData(AD7190_SpiDriver_Typedef *AD7190_SpiDriver);
+
+/*! Read data and status register. 从 DOUT 读取数据和状态寄存器 */
+bool AD7190_ReadDataRegister(AD7190_SpiDriver_Typedef *AD7190_SpiDriver, uint8_t *ch, uint32_t *val);
+
 #endif /* __AD7190_H__ */

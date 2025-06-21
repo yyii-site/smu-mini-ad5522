@@ -120,7 +120,11 @@ double input_range[2] = {0,3.3/3.3*65535};
 double output_Irange[2] = {-150e-6,150e-6};
 double output_Vrange[2] = {0,0.6};
 
-
+// 将 clk 的电平切换到 High
+void SPI_Send_Nop() {
+  const uint8_t nop_data = 0;
+  HAL_SPI_Transmit(&hspi1, &nop_data, 1, 1000);
+}
 void AD7190_CS_Low() {
   HAL_GPIO_WritePin(ADC_CS_GPIO_Port, ADC_CS_Pin, GPIO_PIN_RESET);
 }
@@ -162,7 +166,7 @@ AD7190_SpiDriver_Typedef h_ad7190 = {
   .AD7190_CheckDataReadyPin = AD7190_CheckDataReadyPin,
   .AD7190_Delay_ms = AD7190_Delay_ms
 };
-uint32_t adc_val[4];
+uint32_t ad7190_val[4];
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -199,7 +203,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  // MX_SPI1_Init();
+  MX_SPI1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
@@ -470,57 +474,78 @@ void StartDefaultTask(void *argument)
 void StartTask01(void *argument)
 {
   /* USER CODE BEGIN StartTask01 */
-  AD7190_SPI1_Init();
-  AD7190_Init(&h_ad7190);
-  AD7190_RangeSetup(&h_ad7190, 1, AD7190_CONF_GAIN_1);
-  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN1P_AINCOM);
-  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN2P_AINCOM);
-  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN3P_AINCOM);
-  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN4P_AINCOM);
-  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN1P_AINCOM);
-  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN2P_AINCOM);
-  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN3P_AINCOM);
-  // AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN4P_AINCOM);
-
-  AD7190_ChannelSelect(&h_ad7190, AD7190_CH_AIN1P_AINCOM);
-  adc_val[0] = AD7190_ContinuousReadAvg(&h_ad7190, 10);
-
-  // AD5522_init(&h_PMU,&hspi1,5.0);
-  // AD5522_Calibrate(&h_PMU);
-	// AD5522_StartHiZMV(&h_PMU,PMU_CH_2|PMU_CH_3) ;//configure CH2/3 to monitor voltage only
-	// //AD5522_SetClamp(&h_PMU,PMU_CH_0|PMU_CH_1,32767-30000,32767+30000,0,65535,PMU_DAC_SCALEID_EXT);
-	// AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-2e-3,2e-3,-0.1,0.5,PMU_DAC_SCALEID_200UA);
-	
-	// AD5522_StartFVMI(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_2MA); 
-	// //AD5522_StartFIMV(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_200UA);
+  //----------------------------AD5522 Init-----------------------------
+  HAL_SPI_DeInit(&hspi1);
+  MX_SPI1_Init();
+  AD5522_init(&h_PMU,&hspi1,5.0);
+  AD5522_Calibrate(&h_PMU);
+	AD5522_StartHiZMV(&h_PMU,PMU_CH_2|PMU_CH_3) ;//configure CH2/3 to monitor voltage only
+	// AD5522_SetClamp(&h_PMU,PMU_CH_0|PMU_CH_1,32767-30000,32767+30000,0,65535,PMU_DAC_SCALEID_EXT);
+	AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-2e-3,2e-3,-0.1,0.5,PMU_DAC_SCALEID_200UA);
+	AD5522_StartFVMI(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_2MA); 
+	// AD5522_StartFIMV(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_200UA);
 
   __IO uint16_t value = 0;
 	const uint16_t test_len = 3;
 	// __IO uint16_t value_inc = 0;
-	// //uint16_t test_sig[5] = {0,32768,65535};
-	// float    test_float_V[3] = {-5,0,5};
+	// uint16_t test_sig[5] = {0,32768,65535};
+	float    test_float_V[3] = {-5,0,5};
 	// float    test_float_I[3] = {1e-3,0,-1e-3};
 
-  // AD5522_SetOutputVoltage_float(&h_PMU,PMU_CH_0|PMU_CH_1,5);
 
+  //----------------------------AD7190 Init-----------------------------
+  HAL_SPI_DeInit(&hspi1);
+  AD7190_SPI1_Init();
+  SPI_Send_Nop();
+
+  if (!AD7190_Init(&h_ad7190)) {
+    ;  // AD7190 init failed
+  }
+  AD7190_RangeSetup(&h_ad7190, 1, AD7190_CONF_GAIN_1);  // ADC In unipolar 单极性0-5V
+  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN1P_AINCOM);
+  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN1P_AINCOM);
+  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN2P_AINCOM);
+  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN2P_AINCOM);
+  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN3P_AINCOM);
+  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN3P_AINCOM);
+  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN4P_AINCOM);
+  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN4P_AINCOM);
+  AD7190_ChannelSelectAll(&h_ad7190);
+  AD7190_ContinueMode_StatusAfterData(&h_ad7190);
+  AD7190_AutoContinueMode(&h_ad7190, true);
+  uint8_t adc_buf_channel = 0;
+  uint32_t adc_buf_value = 0;
+
+
+  uint8_t change_target = 0;
   /* Infinite loop */
   for(;;)
   {
-    //LL_ADC_REG_StartConversion(hadc1.Instance);
-		
-		//HAL_ADC_PollForConversion(&hadc1,1000);
-		//AD5522_SetOutputCurrent(&h_PMU,PMU_CH_0|PMU_CH_1,value_inc);value_inc+=10;
-		//AD5522_SetOutputVoltage(&h_PMU,PMU_CH_0|PMU_CH_1,test_sig[value++]);
-		//AD5522_SetOutputVoltage(&h_PMU,PMU_CH_0|PMU_CH_1,32767+32767*wave[value++]);
-		//AD5522_SetOutputVoltage_float(&h_PMU,PMU_CH_0|PMU_CH_1,test_float_V[value]);
-		//AD5522_SetOutputCurrent_float(&h_PMU,PMU_CH_0|PMU_CH_1,test_float_I[value]);
-		//AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-10e-3,test_float_I[value],-0.6,0.6,PMU_DAC_SCALEID_2MA);
-
-    adc_val[0] = AD7190_SingleConversion(&h_ad7190);
-		value+=1;
-		if(value >= test_len)
-			value = 0;
-    osDelay(100);
+    change_target++;
+    if (0 == change_target%50)
+    {
+      HAL_SPI_DeInit(&hspi1);
+      MX_SPI1_Init();	
+      //AD5522_SetOutputCurrent(&h_PMU,PMU_CH_0|PMU_CH_1,value_inc);value_inc+=10;
+      //AD5522_SetOutputVoltage(&h_PMU,PMU_CH_0|PMU_CH_1,test_sig[value++]);
+      //AD5522_SetOutputVoltage(&h_PMU,PMU_CH_0|PMU_CH_1,32767+32767*wave[value++]);
+      AD5522_SetOutputVoltage_float(&h_PMU,PMU_CH_0|PMU_CH_1,test_float_V[value]);
+      //AD5522_SetOutputCurrent_float(&h_PMU,PMU_CH_0|PMU_CH_1,test_float_I[value]);
+      //AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-10e-3,test_float_I[value],-0.6,0.6,PMU_DAC_SCALEID_2MA);
+      value+=1;
+      if(value >= test_len)
+        value = 0;
+    }
+    else
+    {
+      HAL_SPI_DeInit(&hspi1);
+      AD7190_SPI1_Init();
+      SPI_Send_Nop();
+      if (AD7190_ReadDataRegister(&h_ad7190, &adc_buf_channel, &adc_buf_value)) {
+        ad7190_val[adc_buf_channel] = adc_buf_value;
+      }
+    }
+    osDelay(5);
   }
   /* USER CODE END StartTask01 */
 }

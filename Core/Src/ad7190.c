@@ -232,3 +232,72 @@ uint32_t AD7190_TemperatureRead(AD7190_SpiDriver_Typedef* AD7190_SpiDriver) {
 
   return temperature;
 }
+
+/***************************************************************************//**
+ * @brief All channel to be enabled. (+:AIN1~4 -:AINCOM)
+ *
+ * @return  none.
+*******************************************************************************/
+void AD7190_ChannelSelectAll(AD7190_SpiDriver_Typedef* AD7190_SpiDriver) {
+  uint32_t oldRegValue = 0x0;
+  uint32_t newRegValue = 0x0;   
+
+  oldRegValue = AD7190_GetRegisterValue(AD7190_SpiDriver, AD7190_REG_CONF, 3, 1);
+  oldRegValue &= ~(AD7190_CONF_CHAN(0xFF));
+  newRegValue = oldRegValue | AD7190_CONF_CHAN(0xF0);   //AIN1-4
+  AD7190_SetRegisterValue(AD7190_SpiDriver, AD7190_REG_CONF, newRegValue, 3, 1);
+}
+
+
+/***************************************************************************//**
+ * @brief Set CREAD bit 设置连续读取数据寄存器
+ *        不用先选择通道，再等待 ADC 完成转换，最后读取数据。而是 ADC 转换完成后将数据寄存器的内容自动放到DOUT引脚。
+ * @return  none.
+*******************************************************************************/
+void AD7190_AutoContinueMode(AD7190_SpiDriver_Typedef *AD7190_SpiDriver, bool en) {
+  const uint8_t start = 0b01011100;
+  const uint8_t stop = 0b01011000;
+  AD7190_SpiDriver->AD7190_CS_Low();
+  if (en) {
+    AD7190_SpiDriver->AD7190_Spi_WriteByte(start);
+  } else {
+    AD7190_WaitRdyGoLow(AD7190_SpiDriver);
+    AD7190_SpiDriver->AD7190_Spi_WriteByte(stop);
+  }
+  AD7190_SpiDriver->AD7190_CS_High();
+}
+
+/***************************************************************************//**
+ * @brief Set DAT_STA bit  启用后 DOUT 可以输出：数据寄存器+状态寄存器
+ * 
+ * @return  none.
+*******************************************************************************/
+void AD7190_ContinueMode_StatusAfterData(AD7190_SpiDriver_Typedef *AD7190_SpiDriver)
+{
+  uint32_t command = AD7190_MODE_SEL(AD7190_MODE_CONT) | AD7190_MODE_DAT_STA | AD7190_MODE_CLKSRC(AD7190_CLK_INT) | AD7190_MODE_RATE(0x060);
+  AD7190_SetRegisterValue(AD7190_SpiDriver, AD7190_REG_MODE, command, 3, 1);
+}
+
+/***************************************************************************//**
+ * @brief Read data and status register. 从 DOUT 读取数据和状态寄存器
+ * @param ch - return channel num. 
+ * @param val - return channel value. 
+ * @return 
+*******************************************************************************/
+bool AD7190_ReadDataRegister(AD7190_SpiDriver_Typedef *AD7190_SpiDriver, uint8_t *ch, uint32_t *val)
+{
+  uint8_t chd = 0;
+  uint32_t regData = 0x0;
+  AD7190_SpiDriver->AD7190_CS_Low();
+  AD7190_WaitRdyGoLow(AD7190_SpiDriver);
+  regData = AD7190_GetRegisterValue(AD7190_SpiDriver, AD7190_REG_DATA, 4, 0);
+  AD7190_SpiDriver->AD7190_CS_High();
+  chd = regData & 0x07;
+  *val = regData >> 8;
+  if ((chd >= 4) && (chd <=7 ))
+  {
+    *ch = chd - 4;
+    return true;
+  }
+  return false;
+}
