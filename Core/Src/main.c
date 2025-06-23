@@ -26,6 +26,8 @@
 #include "AD5522.h"
 #include "ad7190.h"
 #include "dev_uart.h"
+#include "scpi/scpi.h"
+#include "scpi-def.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,7 +37,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define UART_BUF_SIZE 16
+#define UART_BUF_SIZE 256
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -180,19 +182,72 @@ char uart1_rx_buf[UART_BUF_SIZE];
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
   if (huart->Instance == USART1) {
     if (HAL_UART_RXEVENT_TC == HAL_UARTEx_GetRxEventType(&huart1)) {
-      sprintf(uart1_tx_buf, "rx_event_tc%d", Size);
-      HAL_UART_Transmit(&huart1, (uint8_t *)uart1_tx_buf, strlen(uart1_tx_buf)+1, 100);
+      // sprintf(uart1_tx_buf, "rx_event_tc%d", Size);
+      // HAL_UART_Transmit(&huart1, (uint8_t *)uart1_tx_buf, strlen(uart1_tx_buf)+1, 100);
       uart_dmarx_done_isr(DEV_UART1);
     } else if (HAL_UART_RXEVENT_HT == HAL_UARTEx_GetRxEventType(&huart1)) {
-      sprintf(uart1_tx_buf, "rx_event_ht%d", Size);
-      HAL_UART_Transmit(&huart1, (uint8_t *)uart1_tx_buf, strlen(uart1_tx_buf)+1, 100);
+      // sprintf(uart1_tx_buf, "rx_event_ht%d", Size);
+      // HAL_UART_Transmit(&huart1, (uint8_t *)uart1_tx_buf, strlen(uart1_tx_buf)+1, 100);
       uart_dmarx_half_done_isr(DEV_UART1, Size);
     } else if (HAL_UART_RXEVENT_IDLE == HAL_UARTEx_GetRxEventType(&huart1)) {
-      sprintf(uart1_tx_buf, "rx_event_idle%d", Size);
-      HAL_UART_Transmit(&huart1, (uint8_t *)uart1_tx_buf, strlen(uart1_tx_buf)+1, 100);
+      // sprintf(uart1_tx_buf, "rx_event_idle%d", Size);
+      // HAL_UART_Transmit(&huart1, (uint8_t *)uart1_tx_buf, strlen(uart1_tx_buf)+1, 100);
       uart_dmarx_idle_isr(DEV_UART1, Size);
     }
   }
+}
+
+size_t SCPI_Write(scpi_t * context, const char * data, size_t len) {
+    (void) context;
+    if (HAL_OK == HAL_UART_Transmit(&huart1, (uint8_t *)data, len, 1000)) {
+      return len;
+    } else {
+      return 0;
+    }
+}
+
+scpi_result_t SCPI_Flush(scpi_t * context) {
+    (void) context;
+    return SCPI_RES_OK;
+}
+
+int SCPI_Error(scpi_t * context, int_fast16_t err) {
+    (void) context;
+
+    char _err[50];
+    sprintf(_err, "**ERROR: %d, \"%s\"\r\n", (int16_t) err, SCPI_ErrorTranslate(err));
+    HAL_UART_Transmit(&huart1, (uint8_t *)_err, strlen(_err), 1000);
+    return 0;
+}
+
+scpi_result_t SCPI_Control(scpi_t * context, scpi_ctrl_name_t ctrl, scpi_reg_val_t val) {
+    (void) context;
+
+    char _err[50];
+    if (SCPI_CTRL_SRQ == ctrl) {
+        sprintf(_err, "**SRQ: 0x%X (%d)\r\n", val, val);
+    } else {
+        sprintf(_err, "**CTRL %02x: 0x%X (%d)\r\n", ctrl, val, val);
+    }
+    HAL_UART_Transmit(&huart1, (uint8_t *)_err, strlen(_err), 1000);
+
+    return SCPI_RES_OK;
+}
+
+scpi_result_t SCPI_Reset(scpi_t * context) {
+    (void) context;
+
+    char _err[50];
+    sprintf(_err, "**Reset\r\n");
+    HAL_UART_Transmit(&huart1, (uint8_t *)_err, strlen(_err), 1000);
+
+    return SCPI_RES_OK;
+}
+
+scpi_result_t SCPI_SystemCommTcpipControlQ(scpi_t * context) {
+    (void) context;
+
+    return SCPI_RES_ERR;
 }
 /* USER CODE END 0 */
 
@@ -230,6 +285,13 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   uart_device_init(DEV_UART1);
+  SCPI_Init(&scpi_context,
+        scpi_commands,
+        &scpi_interface,
+        scpi_units_def,
+        SCPI_IDN1, SCPI_IDN2, SCPI_IDN3, SCPI_IDN4,
+        scpi_input_buffer, SCPI_INPUT_BUFFER_LENGTH,
+        scpi_error_queue_data, SCPI_ERROR_QUEUE_SIZE);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -490,7 +552,7 @@ void StartDefaultTask(void *argument)
   {
     readsize = uart_read(1, uart1_rx_buf, UART_BUF_SIZE);
     if (readsize) {
-      readsize = 0;
+      SCPI_Input(&scpi_context, uart1_rx_buf, readsize);
     }
     
     HAL_GPIO_WritePin(GPIOB, LED3_Pin, GPIO_PIN_SET);

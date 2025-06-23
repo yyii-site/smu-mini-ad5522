@@ -52,6 +52,8 @@ MOSI（PA6） 通过一个 1k 的电阻连接到 ADC_READY_Pin（PB11）
 
 * 串口 DMA 接收功能
 
+* 接入 SCPI 库，指令接收与返回
+
 ### 待开发
 
 踩坑记录 Document/README_CN.md
@@ -74,3 +76,7 @@ https://www.djerickson.com/quad-smu/
 https://github.com/zifangzhao/PMU_controller/blob/H7A3/Core/Src/AD5522.c
 
 https://github.com/msthrax/AD7190/tree/master
+
+[一个严谨的STM32串口DMA发送&接收（1.5Mbps波特率）机制](https://zhuanlan.zhihu.com/p/512533089)
+
+https://github.com/j123b567/scpi-parser

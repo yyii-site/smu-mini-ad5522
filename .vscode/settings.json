@@ -5,7 +5,9 @@
         "stdbool.h": "c",
         "cstdint": "c",
         "stm32f1xx_it.h": "c",
-        "stdint.h": "c"
+        "stdint.h": "c",
+        "scpi.h": "c",
+        "scpi-def.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }

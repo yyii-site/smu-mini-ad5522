@@ -22,6 +22,8 @@ set(MX_Include_Dirs
     ${CMAKE_SOURCE_DIR}/Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc
     ${CMAKE_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32F1xx/Include
     ${CMAKE_SOURCE_DIR}/Drivers/CMSIS/Include
+    ${CMAKE_SOURCE_DIR}/libscpi/inc
+    ${CMAKE_SOURCE_DIR}/libscpi/src
 )
 
 # STM32CubeMX generated application sources
@@ -35,6 +37,7 @@ set(MX_Application_Src
     ${CMAKE_SOURCE_DIR}/Core/Src/ad7190.c
     ${CMAKE_SOURCE_DIR}/Core/Src/fifo.c
     ${CMAKE_SOURCE_DIR}/Core/Src/dev_uart.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/scpi-def.c
     ${CMAKE_SOURCE_DIR}/Core/Src/freertos.c
     ${CMAKE_SOURCE_DIR}/Core/Src/stm32f1xx_it.c
     ${CMAKE_SOURCE_DIR}/Core/Src/stm32f1xx_hal_msp.c
@@ -88,6 +91,17 @@ set(FreeRTOS_Src
     ${CMAKE_SOURCE_DIR}/Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c
     ${CMAKE_SOURCE_DIR}/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM3/port.c
 )
+set(SCPI_Library_Src
+    ${CMAKE_SOURCE_DIR}/libscpi/src/error.c
+    ${CMAKE_SOURCE_DIR}/libscpi/src/fifo.c
+    ${CMAKE_SOURCE_DIR}/libscpi/src/ieee488.c
+	${CMAKE_SOURCE_DIR}/libscpi/src/minimal.c
+    ${CMAKE_SOURCE_DIR}/libscpi/src/parser.c
+    ${CMAKE_SOURCE_DIR}/libscpi/src/units.c
+    ${CMAKE_SOURCE_DIR}/libscpi/src/utils.c
+	${CMAKE_SOURCE_DIR}/libscpi/src/lexer.c
+    ${CMAKE_SOURCE_DIR}/libscpi/src/expression.c
+)
 
 # Link directories setup
 set(MX_LINK_DIRS
@@ -98,6 +112,7 @@ set(MX_LINK_LIBS
     STM32_Drivers
     USB_Device_Library
 	FreeRTOS
+    SCPI_Library
 	
 )
 # Interface library for includes and symbols
@@ -120,6 +135,11 @@ target_link_libraries(USB_Device_Library PUBLIC stm32cubemx)
 add_library(FreeRTOS OBJECT)
 target_sources(FreeRTOS PRIVATE ${FreeRTOS_Src})
 target_link_libraries(FreeRTOS PUBLIC stm32cubemx)
+
+# Create SCPI_Library static library
+add_library(SCPI_Library OBJECT)
+target_sources(SCPI_Library PRIVATE ${SCPI_Library_Src})
+target_link_libraries(SCPI_Library PUBLIC stm32cubemx)
 
 # Add STM32CubeMX generated application sources to the project
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${MX_Application_Src})
