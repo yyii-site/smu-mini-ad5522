@@ -33,6 +33,8 @@ set(MX_Application_Src
     ${CMAKE_SOURCE_DIR}/Core/Src/main.c
     ${CMAKE_SOURCE_DIR}/Core/Src/ad5522.c
     ${CMAKE_SOURCE_DIR}/Core/Src/ad7190.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/fifo.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/dev_uart.c
     ${CMAKE_SOURCE_DIR}/Core/Src/freertos.c
     ${CMAKE_SOURCE_DIR}/Core/Src/stm32f1xx_it.c
     ${CMAKE_SOURCE_DIR}/Core/Src/stm32f1xx_hal_msp.c

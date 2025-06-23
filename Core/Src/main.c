@@ -25,6 +25,7 @@
 /* USER CODE BEGIN Includes */
 #include "AD5522.h"
 #include "ad7190.h"
+#include "dev_uart.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -34,7 +35,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define UART_BUF_SIZE 16
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -46,6 +47,7 @@
 SPI_HandleTypeDef hspi1;
 
 UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_rx;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -104,6 +106,7 @@ static void AD7190_SPI1_Init(void)
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void *argument);
@@ -171,7 +174,26 @@ uint32_t ad7190_val[4];
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+char uart1_tx_buf[UART_BUF_SIZE];
+char uart1_rx_buf[UART_BUF_SIZE];
 
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
+  if (huart->Instance == USART1) {
+    if (HAL_UART_RXEVENT_TC == HAL_UARTEx_GetRxEventType(&huart1)) {
+      sprintf(uart1_tx_buf, "rx_event_tc%d", Size);
+      HAL_UART_Transmit(&huart1, (uint8_t *)uart1_tx_buf, strlen(uart1_tx_buf)+1, 100);
+      uart_dmarx_done_isr(DEV_UART1);
+    } else if (HAL_UART_RXEVENT_HT == HAL_UARTEx_GetRxEventType(&huart1)) {
+      sprintf(uart1_tx_buf, "rx_event_ht%d", Size);
+      HAL_UART_Transmit(&huart1, (uint8_t *)uart1_tx_buf, strlen(uart1_tx_buf)+1, 100);
+      uart_dmarx_half_done_isr(DEV_UART1, Size);
+    } else if (HAL_UART_RXEVENT_IDLE == HAL_UARTEx_GetRxEventType(&huart1)) {
+      sprintf(uart1_tx_buf, "rx_event_idle%d", Size);
+      HAL_UART_Transmit(&huart1, (uint8_t *)uart1_tx_buf, strlen(uart1_tx_buf)+1, 100);
+      uart_dmarx_idle_isr(DEV_UART1, Size);
+    }
+  }
+}
 /* USER CODE END 0 */
 
 /**
@@ -203,10 +225,11 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  uart_device_init(DEV_UART1);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -329,7 +352,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
   hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
@@ -377,6 +400,22 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
 
 }
 
@@ -445,9 +484,15 @@ void StartDefaultTask(void *argument)
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
+  uint16_t readsize;
   /* Infinite loop */
   for(;;)
   {
+    readsize = uart_read(1, uart1_rx_buf, UART_BUF_SIZE);
+    if (readsize) {
+      readsize = 0;
+    }
+    
     HAL_GPIO_WritePin(GPIOB, LED3_Pin, GPIO_PIN_SET);
     osDelay(166);
     HAL_GPIO_WritePin(GPIOB, LED3_Pin, GPIO_PIN_RESET);
@@ -517,12 +562,12 @@ void StartTask01(void *argument)
   uint32_t adc_buf_value = 0;
 
 
-  uint8_t change_target = 0;
+  uint8_t loop_count = 0;
   /* Infinite loop */
   for(;;)
   {
-    change_target++;
-    if (0 == change_target%50)
+    loop_count++;
+    if (0 == loop_count%2000)
     {
       HAL_SPI_DeInit(&hspi1);
       MX_SPI1_Init();	
@@ -536,7 +581,7 @@ void StartTask01(void *argument)
       if(value >= test_len)
         value = 0;
     }
-    else
+    if (0 == loop_count%12)
     {
       HAL_SPI_DeInit(&hspi1);
       AD7190_SPI1_Init();
@@ -545,7 +590,7 @@ void StartTask01(void *argument)
         ad7190_val[adc_buf_channel] = adc_buf_value;
       }
     }
-    osDelay(5);
+    osDelay(1);
   }
   /* USER CODE END StartTask01 */
 }

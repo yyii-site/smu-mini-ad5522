@@ -50,6 +50,8 @@ MOSI（PA6） 通过一个 1k 的电阻连接到 ADC_READY_Pin（PB11）
 
 * 依次与 AD5522 和 AD7190 两个芯片通讯
 
+* 串口 DMA 接收功能
+
 ### 待开发
 
 踩坑记录 Document/README_CN.md

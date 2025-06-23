@@ -128,6 +128,10 @@ CPHA = 1
 hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
 ```
 
+SPI CLK 速率最高: 周期(100ns + 100ns) 频率(5MHz)
+
+当前频率 4.5Mhz
+
 ## 同时与 AD5522 和 AD7190 通讯
 
 `AD7190_SPI1_Init();` 函数完成后 sclk 的电平还是为低，此时并不能直接和 AD7190 通讯，需要发送一次数据将 sclk 的电平转为高以后再去和 AD7190 通讯
@@ -142,3 +146,7 @@ void SPI_Send_Nop() {
 ![AD7190_SPI1_Init](img/AD7190_SPI1_Init.png)
 
 ![ad7190_AutoContinueMode_read](img/ad7190_AutoContinueMode_read.png)
+
+## 串口 DMA 接收功能
+
+想要使用`空闲检测`功能，则需要启用 DMA 接收中断，也要启动串口中断。

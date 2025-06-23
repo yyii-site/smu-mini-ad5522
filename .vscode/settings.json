@@ -3,7 +3,9 @@
         "ad5522.h": "c",
         "main.h": "c",
         "stdbool.h": "c",
-        "cstdint": "c"
+        "cstdint": "c",
+        "stm32f1xx_it.h": "c",
+        "stdint.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }
