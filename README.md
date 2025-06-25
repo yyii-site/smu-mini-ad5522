@@ -54,6 +54,10 @@ MOSI（PA6） 通过一个 1k 的电阻连接到 ADC_READY_Pin（PB11）
 
 * 接入 SCPI 库，指令接收与返回
 
+SCPI 库的 libscpi/inc/scpi/config.h 使用 `#define SCPIDEFINE_doubleToStr(v, s, l) snprintf((s), (l), "%.15lg", (v))` 做浮点转换，但生成的项目工程默认禁用浮点功能，需要修改文件cmake/gcc-arm-none-eabi.cmake ，增加 ` -u_printf_float`. 编译后的 ROM 增加了 4912B.
+
+`set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -fdata-sections -ffunction-sections -u_printf_float")`
+
 ### 待开发
 
 踩坑记录 Document/README_CN.md

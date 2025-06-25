@@ -552,21 +552,11 @@ void StartDefaultTask(void *argument)
   {
     readsize = uart_read(1, uart1_rx_buf, UART_BUF_SIZE);
     if (readsize) {
+      HAL_GPIO_WritePin(GPIOB, LED5_Pin, GPIO_PIN_SET);
       SCPI_Input(&scpi_context, uart1_rx_buf, readsize);
+      HAL_GPIO_WritePin(GPIOB, LED5_Pin, GPIO_PIN_RESET);
     }
-    
-    HAL_GPIO_WritePin(GPIOB, LED3_Pin, GPIO_PIN_SET);
-    osDelay(166);
-    HAL_GPIO_WritePin(GPIOB, LED3_Pin, GPIO_PIN_RESET);
-    osDelay(166);
-    HAL_GPIO_WritePin(GPIOB, LED4_Pin, GPIO_PIN_SET);
-    osDelay(166);
-    HAL_GPIO_WritePin(GPIOB, LED4_Pin, GPIO_PIN_RESET);
-    osDelay(166);
-    HAL_GPIO_WritePin(GPIOB, LED5_Pin, GPIO_PIN_SET);
-    osDelay(166);
-    HAL_GPIO_WritePin(GPIOB, LED5_Pin, GPIO_PIN_RESET);
-    osDelay(166);
+    osDelay(10);
   }
   /* USER CODE END 5 */
 }
@@ -631,6 +621,7 @@ void StartTask01(void *argument)
     loop_count++;
     if (0 == loop_count%2000)
     {
+      HAL_GPIO_WritePin(GPIOB, LED3_Pin, GPIO_PIN_SET);
       HAL_SPI_DeInit(&hspi1);
       MX_SPI1_Init();	
       //AD5522_SetOutputCurrent(&h_PMU,PMU_CH_0|PMU_CH_1,value_inc);value_inc+=10;
@@ -642,15 +633,18 @@ void StartTask01(void *argument)
       value+=1;
       if(value >= test_len)
         value = 0;
+      HAL_GPIO_WritePin(GPIOB, LED3_Pin, GPIO_PIN_RESET);
     }
     if (0 == loop_count%12)
     {
+      HAL_GPIO_WritePin(GPIOB, LED4_Pin, GPIO_PIN_SET);
       HAL_SPI_DeInit(&hspi1);
       AD7190_SPI1_Init();
       SPI_Send_Nop();
       if (AD7190_ReadDataRegister(&h_ad7190, &adc_buf_channel, &adc_buf_value)) {
         ad7190_val[adc_buf_channel] = adc_buf_value;
       }
+      HAL_GPIO_WritePin(GPIOB, LED4_Pin, GPIO_PIN_RESET);
     }
     osDelay(1);
   }

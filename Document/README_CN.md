@@ -150,3 +150,7 @@ void SPI_Send_Nop() {
 ## 串口 DMA 接收功能
 
 想要使用`空闲检测`功能，则需要启用 DMA 接收中断，也要启动串口中断。
+
+## SCPI
+
+[STM32 + VS code + CMake 环境下串口打印浮点数](https://zhuanlan.zhihu.com/p/696691495)
