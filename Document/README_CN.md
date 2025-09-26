@@ -154,3 +154,13 @@ void SPI_Send_Nop() {
 ## SCPI
 
 [STM32 + VS code + CMake 环境下串口打印浮点数](https://zhuanlan.zhihu.com/p/696691495)
+
+`:CHANnel1:FUNCtion "HIZMV"`  字符串最后需要增加0x0A，调试软件先输入字符串，再勾选十六进制发送，此时可增加 0A结束符，最后发送。
+
+指令发送错误的话，软件会进入断言停止进一步执行
+
+fprintf(stderr, "ch1:func ***%s***\r\n", buffer);  // 打印字符串时会造成内存溢出。表现为 xSemaphoreGive(semaphore_scpi); 执行时 semaphore_scpi 的地址为 0x00, 进入断言
+
+![SCPI_debug1](img/SCPI_debug1.png)
+
+![SCPI_debug2](img/SCPI_debug2.png)
