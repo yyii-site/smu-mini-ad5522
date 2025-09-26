@@ -23,6 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "semphr.h"
 #include "AD5522.h"
 #include "ad7190.h"
 #include "dev_uart.h"
@@ -50,6 +51,9 @@ SPI_HandleTypeDef hspi1;
 
 UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
+
+SemaphoreHandle_t semaphore_scpi;
+SemaphoreHandle_t semaphore_spi1;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -137,21 +141,27 @@ void AD7190_CS_High() {
   HAL_GPIO_WritePin(ADC_CS_GPIO_Port, ADC_CS_Pin, GPIO_PIN_SET);
 }
 void AD7190_Spi_WriteByte(uint8_t cmd) {
-  int resp = HAL_SPI_Transmit(&hspi1, &cmd,1,1000);
+  HAL_SPI_Transmit(&hspi1, &cmd,1,1000);
 }
 uint8_t AD7190_Spi_ReadByte() {
   uint8_t val=0;
   int resp = HAL_SPI_TransmitReceive(&hspi1, 0x00, &val,1,1000);
+  if (resp != HAL_OK) {
+    return 0;
+  }
   return val;
 }
 void AD7190_Spi_Write(uint8_t* cmd, uint16_t len){
-  int resp = HAL_SPI_Transmit(&hspi1, cmd, len, 1000);
+  HAL_SPI_Transmit(&hspi1, cmd, len, 1000);
 }
 void AD7190_Spi_Read(uint8_t* cmd, uint16_t len) {
   for (int i=0;i<len;i++) {
     uint8_t send = cmd[i];
     uint8_t read = 0;
     int resp = HAL_SPI_TransmitReceive(&hspi1, &send, &read, 1, 1000);
+    if (resp != HAL_OK) {
+      return;
+    }
     cmd[i] = read;
   }
 }
@@ -176,8 +186,8 @@ uint32_t ad7190_val[4];
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-char uart1_tx_buf[UART_BUF_SIZE];
-char uart1_rx_buf[UART_BUF_SIZE];
+uint8_t uart1_tx_buf[UART_BUF_SIZE];
+uint8_t uart1_rx_buf[UART_BUF_SIZE];
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
   if (huart->Instance == USART1) {
@@ -259,7 +269,10 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  semaphore_scpi = xSemaphoreCreateBinary();
+  semaphore_spi1 = xSemaphoreCreateBinary();
+  xSemaphoreGive(semaphore_scpi);
+  xSemaphoreGive(semaphore_spi1);
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -292,6 +305,20 @@ int main(void)
         SCPI_IDN1, SCPI_IDN2, SCPI_IDN3, SCPI_IDN4,
         scpi_input_buffer, SCPI_INPUT_BUFFER_LENGTH,
         scpi_error_queue_data, SCPI_ERROR_QUEUE_SIZE);
+
+  
+  //----------------------------AD5522 Init-----------------------------
+  xSemaphoreTake(semaphore_spi1, portMAX_DELAY);  //此处没有实际作用，仅为强调在任务开始调度的时候要使用 二进制信号量
+  HAL_SPI_DeInit(&hspi1);
+  MX_SPI1_Init();
+  AD5522_init(&h_PMU,&hspi1,5.0);
+  AD5522_Calibrate(&h_PMU);
+  AD5522_StartHiZMV(&h_PMU,PMU_CH_2|PMU_CH_3) ;//configure CH2/3 to monitor voltage only
+  // AD5522_SetClamp(&h_PMU,PMU_CH_0|PMU_CH_1,32767-30000,32767+30000,0,65535,PMU_DAC_SCALEID_EXT);
+  AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-2e-3,2e-3,-0.1,0.5,PMU_DAC_SCALEID_200UA);
+  AD5522_StartFVMI(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_2MA); 
+  // AD5522_StartFIMV(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_200UA);
+  xSemaphoreGive(semaphore_spi1);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -553,7 +580,9 @@ void StartDefaultTask(void *argument)
     readsize = uart_read(1, uart1_rx_buf, UART_BUF_SIZE);
     if (readsize) {
       HAL_GPIO_WritePin(GPIOB, LED5_Pin, GPIO_PIN_SET);
-      SCPI_Input(&scpi_context, uart1_rx_buf, readsize);
+      xSemaphoreTake(semaphore_scpi, portMAX_DELAY);
+      SCPI_Input(&scpi_context, (const char*)uart1_rx_buf, readsize);
+      xSemaphoreGive(semaphore_scpi);
       HAL_GPIO_WritePin(GPIOB, LED5_Pin, GPIO_PIN_RESET);
     }
     osDelay(10);
@@ -571,26 +600,11 @@ void StartDefaultTask(void *argument)
 void StartTask01(void *argument)
 {
   /* USER CODE BEGIN StartTask01 */
-  //----------------------------AD5522 Init-----------------------------
-  HAL_SPI_DeInit(&hspi1);
-  MX_SPI1_Init();
-  AD5522_init(&h_PMU,&hspi1,5.0);
-  AD5522_Calibrate(&h_PMU);
-	AD5522_StartHiZMV(&h_PMU,PMU_CH_2|PMU_CH_3) ;//configure CH2/3 to monitor voltage only
-	// AD5522_SetClamp(&h_PMU,PMU_CH_0|PMU_CH_1,32767-30000,32767+30000,0,65535,PMU_DAC_SCALEID_EXT);
-	AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-2e-3,2e-3,-0.1,0.5,PMU_DAC_SCALEID_200UA);
-	AD5522_StartFVMI(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_2MA); 
-	// AD5522_StartFIMV(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_200UA);
-
-  __IO uint16_t value = 0;
-	const uint16_t test_len = 3;
-	// __IO uint16_t value_inc = 0;
-	// uint16_t test_sig[5] = {0,32768,65535};
-	float    test_float_V[3] = {-5,0,5};
-	// float    test_float_I[3] = {1e-3,0,-1e-3};
-
+  uint8_t adc_buf_channel = 0;
+  uint32_t adc_buf_value = 0;
 
   //----------------------------AD7190 Init-----------------------------
+  xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
   HAL_SPI_DeInit(&hspi1);
   AD7190_SPI1_Init();
   SPI_Send_Nop();
@@ -610,43 +624,24 @@ void StartTask01(void *argument)
   AD7190_ChannelSelectAll(&h_ad7190);
   AD7190_ContinueMode_StatusAfterData(&h_ad7190);
   AD7190_AutoContinueMode(&h_ad7190, true);
-  uint8_t adc_buf_channel = 0;
-  uint32_t adc_buf_value = 0;
+  xSemaphoreGive(semaphore_spi1);
 
-
-  uint8_t loop_count = 0;
   /* Infinite loop */
   for(;;)
   {
-    loop_count++;
-    if (0 == loop_count%2000)
-    {
-      HAL_GPIO_WritePin(GPIOB, LED3_Pin, GPIO_PIN_SET);
-      HAL_SPI_DeInit(&hspi1);
-      MX_SPI1_Init();	
-      //AD5522_SetOutputCurrent(&h_PMU,PMU_CH_0|PMU_CH_1,value_inc);value_inc+=10;
-      //AD5522_SetOutputVoltage(&h_PMU,PMU_CH_0|PMU_CH_1,test_sig[value++]);
-      //AD5522_SetOutputVoltage(&h_PMU,PMU_CH_0|PMU_CH_1,32767+32767*wave[value++]);
-      AD5522_SetOutputVoltage_float(&h_PMU,PMU_CH_0|PMU_CH_1,test_float_V[value]);
-      //AD5522_SetOutputCurrent_float(&h_PMU,PMU_CH_0|PMU_CH_1,test_float_I[value]);
-      //AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-10e-3,test_float_I[value],-0.6,0.6,PMU_DAC_SCALEID_2MA);
-      value+=1;
-      if(value >= test_len)
-        value = 0;
-      HAL_GPIO_WritePin(GPIOB, LED3_Pin, GPIO_PIN_RESET);
-    }
-    if (0 == loop_count%12)
     {
       HAL_GPIO_WritePin(GPIOB, LED4_Pin, GPIO_PIN_SET);
+      xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
       HAL_SPI_DeInit(&hspi1);
       AD7190_SPI1_Init();
       SPI_Send_Nop();
       if (AD7190_ReadDataRegister(&h_ad7190, &adc_buf_channel, &adc_buf_value)) {
         ad7190_val[adc_buf_channel] = adc_buf_value;
       }
+      xSemaphoreGive(semaphore_spi1);
       HAL_GPIO_WritePin(GPIOB, LED4_Pin, GPIO_PIN_RESET);
     }
-    osDelay(1);
+    osDelay(12);
   }
   /* USER CODE END StartTask01 */
 }

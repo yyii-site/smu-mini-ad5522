@@ -58,6 +58,10 @@ SCPI 库的 libscpi/inc/scpi/config.h 使用 `#define SCPIDEFINE_doubleToStr(v, 
 
 `set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -fdata-sections -ffunction-sections -u_printf_float")`
 
+增加自定义 SCPI 指令控制 AD5522 芯片
+
+* SCPI 通讯任务和 AD7190 任务均会使用 SPI1，所以增加了二进制信号量，用于任务间互斥访问。
+
 ### 待开发
 
 踩坑记录 Document/README_CN.md

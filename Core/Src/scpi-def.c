@@ -41,6 +41,96 @@
 #include "scpi/scpi.h"
 #include "scpi-def.h"
 
+#include "cmsis_os.h"
+#include "semphr.h"
+#include "ad5522.h"
+
+extern SemaphoreHandle_t semaphore_spi1;
+extern handle_AD5522 h_PMU;
+
+static scpi_result_t DMM_Channel1Output(scpi_t * context) {
+    scpi_bool_t param1;
+    fprintf(stderr, "ch1:output\r\n"); /* debug command name */
+
+    /* read first parameter if present */
+    if (!SCPI_ParamBool(context, &param1, TRUE)) {
+        return SCPI_RES_ERR;
+    }
+
+    fprintf(stderr, "\tP1=%d\r\n", param1);
+
+    if (false == param1) {
+        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_StartHiZMV(&h_PMU, 1);
+        xSemaphoreGive(semaphore_spi1);
+    }
+
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t DMM_Channel1OutputQ(scpi_t * context) {
+    scpi_number_t param1;
+    fprintf(stderr, "ch1:output?\r\n"); /* debug command name */
+
+    SCPI_ResultInt(context, 0);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t DMM_Channel1Function(scpi_t * context) {
+    char buffer[100];
+    size_t copy_len;
+
+    if (!SCPI_ParamCopyText(context, buffer, sizeof (buffer), &copy_len, FALSE)) {
+        buffer[0] = '\0';
+    }
+
+    // fprintf(stderr, "ch1:func ***%s***\r\n", buffer);  // 打印字符串时会造成内存溢出
+
+    if (strstr(buffer, "HIZMV") != NULL) {
+        fprintf(stderr, "HIZMV\n");
+        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_StartHiZMV(&h_PMU, 1);
+        xSemaphoreGive(semaphore_spi1);
+    }
+    else if (strstr(buffer, "FVMI") != NULL) {
+        fprintf(stderr, "FVMI\n");
+        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_StartFVMI(&h_PMU, 1, PMU_DAC_SCALEID_2MA);  //TODO 为什么所有的通道只有一个电流通道？
+        xSemaphoreGive(semaphore_spi1);
+    }
+    else if (strstr(buffer, "FIMV") != NULL) {
+        fprintf(stderr, "FIMV\n");
+        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_StartFIMV(&h_PMU, 1, PMU_DAC_SCALEID_2MA);
+        xSemaphoreGive(semaphore_spi1);
+    }
+    else if (strstr(buffer, "FVMV") != NULL) {
+        fprintf(stderr, "FVMV\n");
+        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_StartFVMV(&h_PMU, 1, PMU_DAC_SCALEID_2MA);
+        xSemaphoreGive(semaphore_spi1);
+    }
+    else if (strstr(buffer, "FIMI") != NULL) {
+        fprintf(stderr, "FIMI\n");
+        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_StartFIMI(&h_PMU, 1, PMU_DAC_SCALEID_2MA);
+        xSemaphoreGive(semaphore_spi1);
+    }
+    else {
+        return SCPI_RES_ERR;
+    }
+
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t DMM_Channel1FunctionQ(scpi_t * context) {
+    scpi_number_t param1;
+    fprintf(stderr, "ch1:func?\r\n"); /* debug command name */
+
+    SCPI_ResultText(context, "FVMI");
+    return SCPI_RES_OK;
+}
+
 static scpi_result_t DMM_MeasureVoltageDcQ(scpi_t * context) {
     scpi_number_t param1, param2;
     char bf[15];
@@ -171,6 +261,7 @@ static scpi_result_t TEST_Text(scpi_t * context) {
 
     if (!SCPI_ParamCopyText(context, buffer, sizeof (buffer), &copy_len, FALSE)) {
         buffer[0] = '\0';
+        return SCPI_RES_ERR;
     }
 
     fprintf(stderr, "TEXT: ***%s***\r\n", buffer);
@@ -388,6 +479,11 @@ const scpi_command_t scpi_commands[] = {
     {.pattern = "STATus:PRESet", .callback = SCPI_StatusPreset,},
 
     /* DMM */
+    {.pattern = ":CHANnel1:OUTPut", .callback = DMM_Channel1Output,},
+    {.pattern = ":CHANnel1:OUTPut?", .callback = DMM_Channel1OutputQ,},
+    {.pattern = ":CHANnel1:FUNCtion", .callback = DMM_Channel1Function,},    //:CHANnel1:FUNCtion "HIZMV"  字符串最后需要增加0x0A，调试软件先输入字符串，再勾选十六进制发送，此时可增加 0A结束符，最后发送。
+    {.pattern = ":CHANnel1:FUNCtion?", .callback = DMM_Channel1FunctionQ,},  //:CHANnel1:FUNCtion?
+                                                                             //指令发送错误的话，软件会进入断言停止进一步执行
     {.pattern = "MEASure:VOLTage:DC?", .callback = DMM_MeasureVoltageDcQ,},
     {.pattern = "CONFigure:VOLTage:DC", .callback = DMM_ConfigureVoltageDc,},
     {.pattern = "MEASure:VOLTage:DC:RATio?", .callback = SCPI_StubQ,},
