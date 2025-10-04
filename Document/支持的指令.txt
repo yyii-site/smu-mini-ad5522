@@ -1,12 +1,49 @@
-输出设置(用来关闭)
+1.输出设置(用来关闭)
 [:CHANnel<n>]:OUTPut
 参数 1开/0关
 :CHAN2:OUTP 1
+:CHANnel1:OUTPut ON
 
 输出查询
 :CHAN1：OUTP:STAT?
 
 
-设置源功能
+2.设置源功能
 [:CHANnel<n>]:FUNCtion
 参数  HIZMV/FVMI/FIMV/FVMV/FIMI
+
+例子
+:CHANnel1:FUNCtion "FVMI"
+3A 43 48 41 4E 6E 65 6C 31 3A 46 55 4E 43 74 69 6F 6E 20 22 46 56 4D 49 22 0A
+
+查询
+:CHANnel1:FUNCtion?
+3A 43 48 41 4E 6E 65 6C 31 3A 46 55 4E 43 74 69 6F 6E 3F 0A
+
+
+3.设置电流范围
+例子
+:CHANnel1:CURRent:RANGe 2e-3
+
+查询
+:CHANnel1:CURRent:RANGe?
+
+4.电压钳位
+:CHANnel1:VOLTage:PROTection:UPPer 11.0
+:CHANnel1:VOLTage:PROTection:LOWer -11.0
+
+查询
+:CHANnel1:VOLTage:PROTection:UPPer?
+:CHANnel1:VOLTage:PROTection:LOWer?
+
+5.电流钳位
+:CHANnel1:CURRent:PROTection:UPPer 2-e3
+:CHANnel1:CURRent:PROTection:LOWer -2e-3
+
+查询
+:CHANnel1:CURRent:PROTection:UPPer?
+:CHANnel1:CURRent:PROTection:LOWer?
+
+
+6.自校准
+:Calibrate

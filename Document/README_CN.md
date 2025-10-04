@@ -161,6 +161,9 @@ void SPI_Send_Nop() {
 
 fprintf(stderr, "ch1:func ***%s***\r\n", buffer);  // 打印字符串时会造成内存溢出。表现为 xSemaphoreGive(semaphore_scpi); 执行时 semaphore_scpi 的地址为 0x00, 进入断言
 
+fprintf 内存溢出的原因是：调用位置在由 osThreadNew 创建的任务中，但是默认给 Task 分配的内存较小（仅512Byte），增加内存到 1024Byte 后即运行正常。 [As many people already said, sprintf is a big function. You can try to increase the stack of the task using it too. ](https://www.reddit.com/r/embedded/comments/f00iee/how_to_fix_a_sprintfcaused_hard_fault_on_stm32)
+
+
 ![SCPI_debug1](img/SCPI_debug1.png)
 
 ![SCPI_debug2](img/SCPI_debug2.png)

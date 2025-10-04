@@ -41,6 +41,7 @@
 #include "scpi/scpi.h"
 #include "scpi-def.h"
 
+#include "math.h"
 #include "cmsis_os.h"
 #include "semphr.h"
 #include "ad5522.h"
@@ -48,72 +49,108 @@
 extern SemaphoreHandle_t semaphore_spi1;
 extern handle_AD5522 h_PMU;
 
-static scpi_result_t DMM_Channel1Output(scpi_t * context) {
+static uint8_t current2Range(double value) {
+    if (value <= 5e-6) {
+        return PMU_DAC_SCALEID_5UA;
+    } else if (value <= 20e-6) {
+        return PMU_DAC_SCALEID_20UA;
+    }  else if (value <= 200e-6) {
+        return PMU_DAC_SCALEID_200UA;
+    }  else if (value <= 2e-3) {
+        return PMU_DAC_SCALEID_2MA;
+    }  else if (value <= 80e-3) {
+        return PMU_DAC_SCALEID_EXT;
+    }  else {
+        printf("Current set out of range\r\n");
+        return PMU_DAC_SCALEID_EXT;
+    }
+}
+
+static double range2Current(uint32_t IscaleID) {
+	switch(IscaleID)
+	{
+		case PMU_DAC_SCALEID_5UA:
+			return 5e-6;
+		case PMU_DAC_SCALEID_20UA:
+			return 20e-6;
+		case PMU_DAC_SCALEID_200UA:
+			return 200e-6;
+		case PMU_DAC_SCALEID_2MA:
+			return 2e-3;
+		case PMU_DAC_SCALEID_EXT:
+			return 80e-3;
+	}
+    printf("Current out of range\r\n");
+    return 20e-6;
+}
+
+static scpi_result_t SMU_Channel1Output(scpi_t * context) {
+    uint32_t channel = PMU_CH_0;
     scpi_bool_t param1;
-    fprintf(stderr, "ch1:output\r\n"); /* debug command name */
+    printf("ch1:output\r\n"); /* debug command name */
 
     /* read first parameter if present */
     if (!SCPI_ParamBool(context, &param1, TRUE)) {
         return SCPI_RES_ERR;
     }
 
-    fprintf(stderr, "\tP1=%d\r\n", param1);
-
+    // PMU_PMUREG_CH_EN
     if (false == param1) {
         xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
-        AD5522_StartHiZMV(&h_PMU, 1);
+        AD5522_StartHiZMV(&h_PMU, channel);
         xSemaphoreGive(semaphore_spi1);
     }
 
     return SCPI_RES_OK;
 }
 
-static scpi_result_t DMM_Channel1OutputQ(scpi_t * context) {
-    scpi_number_t param1;
-    fprintf(stderr, "ch1:output?\r\n"); /* debug command name */
+static scpi_result_t SMU_Channel1OutputQ(scpi_t * context) {
+    printf("ch1:output?\r\n"); /* debug command name */
 
-    SCPI_ResultInt(context, 0);
+    SCPI_ResultInt(context, 1);
     return SCPI_RES_OK;
 }
 
-static scpi_result_t DMM_Channel1Function(scpi_t * context) {
+static scpi_result_t SMU_Channel1Function(scpi_t * context) {
+    uint32_t channel = PMU_CH_0;
     char buffer[100];
     size_t copy_len;
-
-    if (!SCPI_ParamCopyText(context, buffer, sizeof (buffer), &copy_len, FALSE)) {
+    
+    // 模式
+    if (!SCPI_ParamCopyText(context, buffer, sizeof (buffer), &copy_len, TRUE)) {
         buffer[0] = '\0';
     }
 
-    // fprintf(stderr, "ch1:func ***%s***\r\n", buffer);  // 打印字符串时会造成内存溢出
+    // printf("ch1:func ***%s***\r\n", buffer);  // 打印格式化字符串时会造成错误
 
     if (strstr(buffer, "HIZMV") != NULL) {
-        fprintf(stderr, "HIZMV\n");
+        printf("HIZMV\n");
         xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
-        AD5522_StartHiZMV(&h_PMU, 1);
+        AD5522_StartHiZMV(&h_PMU, channel);
         xSemaphoreGive(semaphore_spi1);
     }
     else if (strstr(buffer, "FVMI") != NULL) {
-        fprintf(stderr, "FVMI\n");
+        printf("FVMI\n");
         xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
-        AD5522_StartFVMI(&h_PMU, 1, PMU_DAC_SCALEID_2MA);  //TODO 为什么所有的通道只有一个电流通道？
+        AD5522_StartFVMI(&h_PMU, channel, h_PMU.i_range);  //TODO 为什么所有的通道只有一个电流通道？
         xSemaphoreGive(semaphore_spi1);
     }
     else if (strstr(buffer, "FIMV") != NULL) {
-        fprintf(stderr, "FIMV\n");
+        printf("FIMV\n");
         xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
-        AD5522_StartFIMV(&h_PMU, 1, PMU_DAC_SCALEID_2MA);
+        AD5522_StartFIMV(&h_PMU, channel, h_PMU.i_range);
         xSemaphoreGive(semaphore_spi1);
     }
     else if (strstr(buffer, "FVMV") != NULL) {
-        fprintf(stderr, "FVMV\n");
+        printf("FVMV\n");
         xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
-        AD5522_StartFVMV(&h_PMU, 1, PMU_DAC_SCALEID_2MA);
+        AD5522_StartFVMV(&h_PMU, channel, h_PMU.i_range);
         xSemaphoreGive(semaphore_spi1);
     }
     else if (strstr(buffer, "FIMI") != NULL) {
-        fprintf(stderr, "FIMI\n");
+        printf("FIMI\n");
         xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
-        AD5522_StartFIMI(&h_PMU, 1, PMU_DAC_SCALEID_2MA);
+        AD5522_StartFIMI(&h_PMU, channel, h_PMU.i_range);
         xSemaphoreGive(semaphore_spi1);
     }
     else {
@@ -123,18 +160,305 @@ static scpi_result_t DMM_Channel1Function(scpi_t * context) {
     return SCPI_RES_OK;
 }
 
-static scpi_result_t DMM_Channel1FunctionQ(scpi_t * context) {
-    scpi_number_t param1;
-    fprintf(stderr, "ch1:func?\r\n"); /* debug command name */
+static scpi_result_t SMU_Channel1FunctionQ(scpi_t * context) {
+    uint8_t channel = 0;
+    printf("ch1:func?\r\n");
+    uint32_t pmu = h_PMU.reg_pmu[channel];
+    if ((pmu & PMU_PMUREG_HZI) && (pmu & PMU_PMUREG_MEAS_V)) {
+        SCPI_ResultText(context, "HIZMV");
+    } else if ((pmu & PMU_PMUREG_FVCI) && (pmu & PMU_PMUREG_MEAS_I)) {
+        SCPI_ResultText(context, "FVMI");
+    } else if ((pmu & PMU_PMUREG_FICV) && (pmu & PMU_PMUREG_MEAS_V)) {
+        SCPI_ResultText(context, "FIMV");
+    } else if ((pmu & PMU_PMUREG_FVCI) && (pmu & PMU_PMUREG_MEAS_V)) {
+        SCPI_ResultText(context, "FVMV");
+    } else if ((pmu & PMU_PMUREG_FICV) && (pmu & PMU_PMUREG_MEAS_I)) {
+        SCPI_ResultText(context, "FIMI");
+    } else {
+        SCPI_ResultText(context, "Null");
+    }
+    return SCPI_RES_OK;
+}
 
-    SCPI_ResultText(context, "FVMI");
+static scpi_result_t SMU_Channel1CurrentRange(scpi_t * context) {
+    uint32_t channel = PMU_CH_0;
+    double param1;
+    // uint8_t I_range;
+    printf("ch1:Curr:Range\r\n"); /* debug command name */
+
+    /* read first parameter if present */
+    if (!SCPI_ParamDouble(context, &param1, TRUE)) {
+        return SCPI_RES_ERR;
+    }
+
+    // I_range = current2Range(param1);
+    // AD5522_StartFVMI;
+
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1CurrentRangeQ(scpi_t * context) {
+    printf("ch1:Curr:Range?\r\n");
+
+    double range = range2Current(h_PMU.i_range);
+    SCPI_ResultDouble(context, range);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1VoltageLevel(scpi_t * context) {
+    uint32_t channel = PMU_CH_0;
+    double param1;
+    printf("ch1:Vol:Level\r\n");
+
+    if (!SCPI_ParamDouble(context, &param1, TRUE)) {
+        return SCPI_RES_ERR;
+    }
+
+    if (param1 > 11.5) {
+        printf("Channel1Voltage out of range\r\n");
+        return SCPI_RES_ERR;
+    } else if (param1 < -11.5) {
+        printf("Channel1Voltage out of range\r\n");
+        return SCPI_RES_ERR;
+    } else {
+        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_SetOutputVoltage_float(&h_PMU, channel, param1);
+        xSemaphoreGive(semaphore_spi1);
+    }
+
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1VoltageLevelQ(scpi_t * context) {
+    uint8_t ch_i = 0;
+    printf("ch1:Vol:Level?\r\n");
+    uint32_t V_level = h_PMU.reg_DAC_FIN_V[ch_i][AD5522_DAC_REG_X1];
+    float vref = h_PMU.vref;
+    double Vlevel = (V_level-32768.0)/pow(2,16)*vref*4.5;
+
+    SCPI_ResultDouble(context, Vlevel);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1CurrentLevel(scpi_t * context) {
+    uint32_t channel = PMU_CH_0;
+    double param1;
+    printf("ch1:Curr:Level\r\n");
+
+    /* read first parameter if present */
+    if (!SCPI_ParamDouble(context, &param1, TRUE)) {
+        return SCPI_RES_ERR;
+    }
+
+    if (param1 < 0.08)
+    {
+        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_SetOutputCurrent_float(&h_PMU, channel, param1);
+        xSemaphoreGive(semaphore_spi1);
+    }
+
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1CurrentLevelQ(scpi_t * context) {
+    uint8_t ch_i = 0;
+    printf("ch1:Curr:Level?\r\n");
+
+    uint32_t I_level = h_PMU.reg_DAC_FIN_I[ch_i][h_PMU.i_range][AD5522_DAC_REG_X1];
+	float MI_gain = 5;
+    float vref = h_PMU.vref;
+	float Rsense = h_PMU.Rsense;
+    double Ilevel = 4.5 * vref * ((I_level - 32768.0)/pow(2,16))/(Rsense*MI_gain);
+
+    SCPI_ResultDouble(context, Ilevel);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1VoltageProtectionUpper(scpi_t * context) {
+    uint8_t ch_i = 0;
+    uint32_t channel = PMU_CH_0;
+    double param1;
+    printf("ch1:Vol:Upper\r\n");
+
+    if (!SCPI_ParamDouble(context, &param1, TRUE)) {
+        return SCPI_RES_ERR;
+    }
+    float vref  = h_PMU.vref;
+    double V_high = param1;
+    double Vhigh;
+    Vhigh=((1.0*V_high)/4.5/vref)*pow(2,16)+32768;
+	Vhigh = Vhigh>65535?65535:Vhigh;
+	Vhigh = Vhigh<0?0:Vhigh;
+    
+    xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+    AD5522_SetClamp(&h_PMU, channel,
+        h_PMU.reg_DAC_CLL_I[ch_i][AD5522_DAC_REG_X1],
+        h_PMU.reg_DAC_CLH_I[ch_i][AD5522_DAC_REG_X1],
+        h_PMU.reg_DAC_CLL_V[ch_i][AD5522_DAC_REG_X1],
+        (uint16_t)Vhigh,
+        h_PMU.i_range);
+    xSemaphoreGive(semaphore_spi1);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1VoltageProtectionUpperQ(scpi_t * context) {
+    uint8_t ch_i = 0;
+    printf("ch1:Vol:UpperQ?\r\n");
+    uint32_t Vhigh = h_PMU.reg_DAC_CLH_V[ch_i][AD5522_DAC_REG_X1];
+    float vref = h_PMU.vref;
+    double v_level = (Vhigh-32768.0)/pow(2,16)*vref*4.5;
+
+    SCPI_ResultDouble(context, v_level);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1VoltageProtectionLower(scpi_t * context) {
+    uint8_t ch_i = 0;
+    uint32_t channel = PMU_CH_0;
+    double param1;
+    printf("ch1:Vol:Lower\r\n");
+
+    if (!SCPI_ParamDouble(context, &param1, TRUE)) {
+        return SCPI_RES_ERR;
+    }
+    float vref  = h_PMU.vref;
+    double V_low = param1;
+    double Vlow;
+    Vlow=((1.0*V_low)/4.5/vref)*pow(2,16)+32768;
+	Vlow = Vlow>65535?65535:Vlow;
+	Vlow = Vlow<0?0:Vlow;
+    
+    xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+    AD5522_SetClamp(&h_PMU, channel,
+        h_PMU.reg_DAC_CLL_I[ch_i][AD5522_DAC_REG_X1],
+        h_PMU.reg_DAC_CLH_I[ch_i][AD5522_DAC_REG_X1],
+        (uint16_t)Vlow,
+        h_PMU.reg_DAC_CLH_V[ch_i][AD5522_DAC_REG_X1],
+        h_PMU.i_range);
+    xSemaphoreGive(semaphore_spi1);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1VoltageProtectionLowerQ(scpi_t * context) {
+    uint8_t ch_i = 0;
+    printf("ch1:Vol:LowerQ?\r\n");
+    uint32_t Vlow = h_PMU.reg_DAC_CLL_V[ch_i][AD5522_DAC_REG_X1];
+    float vref = h_PMU.vref;
+    double v_level = (Vlow-32768.0)/pow(2,16)*vref*4.5;
+
+    SCPI_ResultDouble(context, v_level);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1CurrentProtectionUpper(scpi_t * context) {
+    uint8_t ch_i = 0;
+    uint32_t channel = PMU_CH_0;
+    double param1;
+    printf("ch1:Curr:Upper\r\n");
+
+    if (!SCPI_ParamDouble(context, &param1, TRUE)) {
+        return SCPI_RES_ERR;
+    }
+	float MI_gain = 5;
+	float vref  = h_PMU.vref;
+	float Rsense = h_PMU.Rsense;
+    double I_high = param1;
+    double Ihigh;
+    Ihigh=((I_high*Rsense*MI_gain)/4.5/vref)*pow(2,16) + 32768;
+	Ihigh = Ihigh>65535?65535:Ihigh;
+	Ihigh = Ihigh<0?0:Ihigh;
+    
+    xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+    AD5522_SetClamp(&h_PMU, channel,
+        h_PMU.reg_DAC_CLL_I[ch_i][AD5522_DAC_REG_X1],
+        (uint16_t)Ihigh,
+        h_PMU.reg_DAC_CLL_V[ch_i][AD5522_DAC_REG_X1],
+        h_PMU.reg_DAC_CLH_V[ch_i][AD5522_DAC_REG_X1],
+        h_PMU.i_range);
+    xSemaphoreGive(semaphore_spi1);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1CurrentProtectionUpperQ(scpi_t * context) {
+	uint8_t ch_i = 0;
+    printf("ch1:Curr:UpperQ?\r\n");
+    uint32_t Ihigh = h_PMU.reg_DAC_CLH_I[ch_i][AD5522_DAC_REG_X1];
+	float MI_gain = 5;
+    float vref = h_PMU.vref;
+	float Rsense = h_PMU.Rsense;
+    double i_level = (Ihigh-32768)*1.0/pow(2,16)*vref*4.5/MI_gain/Rsense;
+
+    SCPI_ResultDouble(context, i_level);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1CurrentProtectionLower(scpi_t * context) {
+    uint8_t ch_i = 0;
+    uint32_t channel = PMU_CH_0;
+    double param1;
+    printf("ch1:Curr:Lower\r\n");
+
+    if (!SCPI_ParamDouble(context, &param1, TRUE)) {
+        return SCPI_RES_ERR;
+    }
+    float MI_gain = 5;
+	float vref  = h_PMU.vref;
+	float Rsense = h_PMU.Rsense;
+    double I_low = param1;
+    double Ilow;
+    Ilow=((I_low*Rsense*MI_gain)/4.5/vref)*pow(2,16)+32768;
+	Ilow = Ilow>65535?65535:Ilow;
+	Ilow = Ilow<0?0:Ilow;
+    
+    xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+    AD5522_SetClamp(&h_PMU, channel,
+		(uint16_t)I_low,
+        h_PMU.reg_DAC_CLH_I[ch_i][AD5522_DAC_REG_X1],
+        h_PMU.reg_DAC_CLL_V[ch_i][AD5522_DAC_REG_X1],
+        h_PMU.reg_DAC_CLH_V[ch_i][AD5522_DAC_REG_X1],
+        h_PMU.i_range);
+    xSemaphoreGive(semaphore_spi1);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1CurrentProtectionLowerQ(scpi_t * context) {
+    uint8_t ch_i = 0;
+    printf("ch1:Curr:LowerQ?\r\n");
+    uint32_t Ilow = h_PMU.reg_DAC_CLL_V[ch_i][AD5522_DAC_REG_X1];
+    float MI_gain = 5;
+    float vref = h_PMU.vref;
+	float Rsense = h_PMU.Rsense;
+    double i_level = (Ilow-32768.0)/pow(2,16)*vref*4.5/MI_gain/Rsense;
+
+    SCPI_ResultDouble(context, i_level);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Channel1FetchQ(scpi_t * context) {
+    printf("ch1:FetchQ?\r\n");
+    // float MI_gain = 5;
+    // float vref = h_PMU.vref;
+	// float Rsense = h_PMU.Rsense;
+
+    SCPI_ResultDouble(context, 1);
+    SCPI_ResultDouble(context, 2);
+    SCPI_ResultDouble(context, 3);
+    return SCPI_RES_OK;
+}
+
+static scpi_result_t SMU_Calibrate(scpi_t * context) {
+    printf(":Calibrate\r\n");
+
+    xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+    AD5522_Calibrate(&h_PMU);
+    xSemaphoreGive(semaphore_spi1);
     return SCPI_RES_OK;
 }
 
 static scpi_result_t DMM_MeasureVoltageDcQ(scpi_t * context) {
     scpi_number_t param1, param2;
     char bf[15];
-    fprintf(stderr, "meas:volt:dc\r\n"); /* debug command name */
+    printf("meas:volt:dc\r\n"); /* debug command name */
 
     /* read first parameter if present */
     if (!SCPI_ParamNumber(context, scpi_special_numbers_def, &param1, FALSE)) {
@@ -148,11 +472,7 @@ static scpi_result_t DMM_MeasureVoltageDcQ(scpi_t * context) {
 
 
     SCPI_NumberToStr(context, scpi_special_numbers_def, &param1, bf, 15);
-    fprintf(stderr, "\tP1=%s\r\n", bf);
-
-
     SCPI_NumberToStr(context, scpi_special_numbers_def, &param2, bf, 15);
-    fprintf(stderr, "\tP2=%s\r\n", bf);
 
     SCPI_ResultDouble(context, 0);
 
@@ -162,7 +482,7 @@ static scpi_result_t DMM_MeasureVoltageDcQ(scpi_t * context) {
 static scpi_result_t DMM_MeasureVoltageAcQ(scpi_t * context) {
     scpi_number_t param1, param2;
     char bf[15];
-    fprintf(stderr, "meas:volt:ac\r\n"); /* debug command name */
+    printf("meas:volt:ac\r\n"); /* debug command name */
 
     /* read first parameter if present */
     if (!SCPI_ParamNumber(context, scpi_special_numbers_def, &param1, FALSE)) {
@@ -174,13 +494,8 @@ static scpi_result_t DMM_MeasureVoltageAcQ(scpi_t * context) {
         /* do something, if parameter not present */
     }
 
-
     SCPI_NumberToStr(context, scpi_special_numbers_def, &param1, bf, 15);
-    fprintf(stderr, "\tP1=%s\r\n", bf);
-
-
     SCPI_NumberToStr(context, scpi_special_numbers_def, &param2, bf, 15);
-    fprintf(stderr, "\tP2=%s\r\n", bf);
 
     SCPI_ResultDouble(context, 0);
 
@@ -189,7 +504,7 @@ static scpi_result_t DMM_MeasureVoltageAcQ(scpi_t * context) {
 
 static scpi_result_t DMM_ConfigureVoltageDc(scpi_t * context) {
     double param1, param2;
-    fprintf(stderr, "conf:volt:dc\r\n"); /* debug command name */
+    printf("conf:volt:dc\r\n"); /* debug command name */
 
     /* read first parameter if present */
     if (!SCPI_ParamDouble(context, &param1, TRUE)) {
@@ -201,22 +516,17 @@ static scpi_result_t DMM_ConfigureVoltageDc(scpi_t * context) {
         /* do something, if parameter not present */
     }
 
-    fprintf(stderr, "\tP1=%lf\r\n", param1);
-    fprintf(stderr, "\tP2=%lf\r\n", param2);
-
     return SCPI_RES_OK;
 }
 
 static scpi_result_t TEST_Bool(scpi_t * context) {
     scpi_bool_t param1;
-    fprintf(stderr, "TEST:BOOL\r\n"); /* debug command name */
+    printf("TEST:BOOL\r\n"); /* debug command name */
 
     /* read first parameter if present */
     if (!SCPI_ParamBool(context, &param1, TRUE)) {
         return SCPI_RES_ERR;
     }
-
-    fprintf(stderr, "\tP1=%d\r\n", param1);
 
     return SCPI_RES_OK;
 }
@@ -238,7 +548,6 @@ static scpi_result_t TEST_ChoiceQ(scpi_t * context) {
     }
 
     SCPI_ChoiceToName(trigger_source, param, &name);
-    fprintf(stderr, "\tP1=%s (%ld)\r\n", name, (long int) param);
 
     SCPI_ResultInt32(context, param);
 
@@ -249,8 +558,6 @@ static scpi_result_t TEST_Numbers(scpi_t * context) {
     int32_t numbers[2];
 
     SCPI_CommandNumbers(context, numbers, 2, 1);
-
-    fprintf(stderr, "TEST numbers %d %d\r\n", numbers[0], numbers[1]);
 
     return SCPI_RES_OK;
 }
@@ -263,8 +570,6 @@ static scpi_result_t TEST_Text(scpi_t * context) {
         buffer[0] = '\0';
         return SCPI_RES_ERR;
     }
-
-    fprintf(stderr, "TEXT: ***%s***\r\n", buffer);
 
     return SCPI_RES_OK;
 }
@@ -420,11 +725,12 @@ static scpi_result_t TEST_Chanlst(scpi_t *context) {
 
     {
         size_t i;
-        fprintf(stderr, "TEST_Chanlst: ");
+        printf("TEST_Chanlst: ");
         for (i = 0; i< arr_idx; i++) {
-            fprintf(stderr, "%d!%d, ", array[i].row, array[i].col);
+            // printf("%d!%d, ", array[i].row, array[i].col);
+            ;
         }
-        fprintf(stderr, "\r\n");
+        printf("\r\n");
     }
     return SCPI_RES_OK;
 }
@@ -478,12 +784,29 @@ const scpi_command_t scpi_commands[] = {
 
     {.pattern = "STATus:PRESet", .callback = SCPI_StatusPreset,},
 
-    /* DMM */
-    {.pattern = ":CHANnel1:OUTPut", .callback = DMM_Channel1Output,},
-    {.pattern = ":CHANnel1:OUTPut?", .callback = DMM_Channel1OutputQ,},
-    {.pattern = ":CHANnel1:FUNCtion", .callback = DMM_Channel1Function,},    //:CHANnel1:FUNCtion "HIZMV"  字符串最后需要增加0x0A，调试软件先输入字符串，再勾选十六进制发送，此时可增加 0A结束符，最后发送。
-    {.pattern = ":CHANnel1:FUNCtion?", .callback = DMM_Channel1FunctionQ,},  //:CHANnel1:FUNCtion?
-                                                                             //指令发送错误的话，软件会进入断言停止进一步执行
+    /* SMU */
+    //指令发送错误的话，软件会进入断言停止进一步执行
+    {.pattern = ":CHANnel1:OUTPut", .callback = SMU_Channel1Output,},
+    {.pattern = ":CHANnel1:OUTPut?", .callback = SMU_Channel1OutputQ,},
+    {.pattern = ":CHANnel1:FUNCtion", .callback = SMU_Channel1Function,},    //:CHANnel1:FUNCtion "HIZMV"  字符串最后需要增加0x0A，调试软件先输入字符串，再勾选十六进制发送，此时可增加 0A结束符，最后发送。
+    {.pattern = ":CHANnel1:FUNCtion?", .callback = SMU_Channel1FunctionQ,},  //:CHANnel1:FUNCtion?
+    {.pattern = ":CHANnel1:CURRent:RANGe",  .callback = SMU_Channel1CurrentRange,},
+    {.pattern = ":CHANnel1:CURRent:RANGe?", .callback = SMU_Channel1CurrentRangeQ,},
+    {.pattern = ":CHANnel1:VOLTage:LEVel",  .callback = SMU_Channel1VoltageLevel,},
+    {.pattern = ":CHANnel1:VOLTage:LEVel?", .callback = SMU_Channel1VoltageLevelQ,},
+    {.pattern = ":CHANnel1:CURRent:LEVel",  .callback = SMU_Channel1CurrentLevel,},
+    {.pattern = ":CHANnel1:CURRent:LEVel?", .callback = SMU_Channel1CurrentLevelQ,},
+    {.pattern = ":CHANnel1:VOLTage:PROTection:UPPer",  .callback = SMU_Channel1VoltageProtectionUpper,},
+    {.pattern = ":CHANnel1:VOLTage:PROTection:UPPer?", .callback = SMU_Channel1VoltageProtectionUpperQ,},
+    {.pattern = ":CHANnel1:VOLTage:PROTection:LOWer",  .callback = SMU_Channel1VoltageProtectionLower,},
+    {.pattern = ":CHANnel1:VOLTage:PROTection:LOWer?", .callback = SMU_Channel1VoltageProtectionLowerQ,},
+    {.pattern = ":CHANnel1:CURRent:PROTection:UPPer",  .callback = SMU_Channel1CurrentProtectionUpper,},
+    {.pattern = ":CHANnel1:CURRent:PROTection:UPPer?", .callback = SMU_Channel1CurrentProtectionUpperQ,},
+    {.pattern = ":CHANnel1:CURRent:PROTection:LOWer",  .callback = SMU_Channel1CurrentProtectionLower,},
+    {.pattern = ":CHANnel1:CURRent:PROTection:LOWer?", .callback = SMU_Channel1CurrentProtectionLowerQ,},
+    {.pattern = ":CHANnel1:FETCh?", .callback = SMU_Channel1FetchQ,},
+    {.pattern = ":Calibrate", .callback = SMU_Calibrate,},
+
     {.pattern = "MEASure:VOLTage:DC?", .callback = DMM_MeasureVoltageDcQ,},
     {.pattern = "CONFigure:VOLTage:DC", .callback = DMM_ConfigureVoltageDc,},
     {.pattern = "MEASure:VOLTage:DC:RATio?", .callback = SCPI_StubQ,},

@@ -23,6 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
 #include "semphr.h"
 #include "AD5522.h"
 #include "ad7190.h"
@@ -59,7 +60,7 @@ SemaphoreHandle_t semaphore_spi1;
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 128 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for myTask01 */
@@ -120,6 +121,18 @@ void StartTask01(void *argument);
 void Callback01(void *argument);
 
 /* USER CODE BEGIN PFP */
+#ifdef __GNUC__
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else
+#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#endif
+
+PUTCHAR_PROTOTYPE
+{
+  HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+  return ch;
+}
+
 handle_AD5522 h_PMU;
 __IO uint16_t ADC_temp[5];
 __IO uint16_t ADC_cnt = 5;
@@ -298,13 +311,14 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   uart_device_init(DEV_UART1);
-  SCPI_Init(&scpi_context,
-        scpi_commands,
-        &scpi_interface,
-        scpi_units_def,
-        SCPI_IDN1, SCPI_IDN2, SCPI_IDN3, SCPI_IDN4,
-        scpi_input_buffer, SCPI_INPUT_BUFFER_LENGTH,
-        scpi_error_queue_data, SCPI_ERROR_QUEUE_SIZE);
+  printf("Characters: %c %c\n", 'a', 65);
+  printf("Decimals: %d %ld\n", 1977, 650000L);
+  printf("Preceding with blanks: %10d\n", 1977);
+  printf("Preceding with zeros: %010d\n", 1977);
+  printf("Some different radices: %d %x %o %#x %#o\n", 100, 100, 100, 100, 100);
+  printf("floats: %4.2f %+.0e %E\n", 3.1416, 3.1416, 3.1416);
+  printf("Width trick: %*d\n", 5, 10);
+  printf("%s\n", "A string");
 
   
   //----------------------------AD5522 Init-----------------------------
@@ -313,10 +327,10 @@ int main(void)
   MX_SPI1_Init();
   AD5522_init(&h_PMU,&hspi1,5.0);
   AD5522_Calibrate(&h_PMU);
-  AD5522_StartHiZMV(&h_PMU,PMU_CH_2|PMU_CH_3) ;//configure CH2/3 to monitor voltage only
+  AD5522_StartHiZMV(&h_PMU,PMU_CH_0|PMU_CH_1|PMU_CH_2|PMU_CH_3) ;//configure CH2/3 to monitor voltage only
   // AD5522_SetClamp(&h_PMU,PMU_CH_0|PMU_CH_1,32767-30000,32767+30000,0,65535,PMU_DAC_SCALEID_EXT);
-  AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-2e-3,2e-3,-0.1,0.5,PMU_DAC_SCALEID_200UA);
-  AD5522_StartFVMI(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_2MA); 
+  AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-80e-3,80e-3,-11.5,11.5,PMU_DAC_SCALEID_2MA);
+  // AD5522_StartFVMI(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_2MA); 
   // AD5522_StartFIMV(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_200UA);
   xSemaphoreGive(semaphore_spi1);
   /* USER CODE END 2 */
@@ -574,6 +588,13 @@ void StartDefaultTask(void *argument)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
   uint16_t readsize;
+  SCPI_Init(&scpi_context,
+      scpi_commands,
+      &scpi_interface,
+      scpi_units_def,
+      SCPI_IDN1, SCPI_IDN2, SCPI_IDN3, SCPI_IDN4,
+      scpi_input_buffer, SCPI_INPUT_BUFFER_LENGTH,
+      scpi_error_queue_data, SCPI_ERROR_QUEUE_SIZE);
   /* Infinite loop */
   for(;;)
   {
