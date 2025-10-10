@@ -46,8 +46,10 @@
 #include "semphr.h"
 #include "ad5522.h"
 
-extern SemaphoreHandle_t semaphore_spi1;
+
 extern handle_AD5522 h_PMU;
+extern void AD5522_in(void);
+extern void AD5522_out(void);
 
 static uint8_t current2Range(double value) {
     if (value <= 5e-6) {
@@ -96,9 +98,9 @@ static scpi_result_t SMU_Channel1Output(scpi_t * context) {
 
     // PMU_PMUREG_CH_EN
     if (false == param1) {
-        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_in();
         AD5522_StartHiZMV(&h_PMU, channel);
-        xSemaphoreGive(semaphore_spi1);
+        AD5522_out();
     }
 
     return SCPI_RES_OK;
@@ -125,33 +127,33 @@ static scpi_result_t SMU_Channel1Function(scpi_t * context) {
 
     if (strstr(buffer, "HIZMV") != NULL) {
         printf("HIZMV\n");
-        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_in();
         AD5522_StartHiZMV(&h_PMU, channel);
-        xSemaphoreGive(semaphore_spi1);
+        AD5522_out();
     }
     else if (strstr(buffer, "FVMI") != NULL) {
         printf("FVMI\n");
-        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_in();
         AD5522_StartFVMI(&h_PMU, channel, h_PMU.i_range);  //TODO 为什么所有的通道只有一个电流通道？
-        xSemaphoreGive(semaphore_spi1);
+        AD5522_out();
     }
     else if (strstr(buffer, "FIMV") != NULL) {
         printf("FIMV\n");
-        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_in();
         AD5522_StartFIMV(&h_PMU, channel, h_PMU.i_range);
-        xSemaphoreGive(semaphore_spi1);
+        AD5522_out();
     }
     else if (strstr(buffer, "FVMV") != NULL) {
         printf("FVMV\n");
-        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_in();
         AD5522_StartFVMV(&h_PMU, channel, h_PMU.i_range);
-        xSemaphoreGive(semaphore_spi1);
+        AD5522_out();
     }
     else if (strstr(buffer, "FIMI") != NULL) {
         printf("FIMI\n");
-        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_in();
         AD5522_StartFIMI(&h_PMU, channel, h_PMU.i_range);
-        xSemaphoreGive(semaphore_spi1);
+        AD5522_out();
     }
     else {
         return SCPI_RES_ERR;
@@ -221,9 +223,9 @@ static scpi_result_t SMU_Channel1VoltageLevel(scpi_t * context) {
         printf("Channel1Voltage out of range\r\n");
         return SCPI_RES_ERR;
     } else {
-        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_in();
         AD5522_SetOutputVoltage_float(&h_PMU, channel, param1);
-        xSemaphoreGive(semaphore_spi1);
+        AD5522_out();
     }
 
     return SCPI_RES_OK;
@@ -252,9 +254,9 @@ static scpi_result_t SMU_Channel1CurrentLevel(scpi_t * context) {
 
     if (param1 < 0.08)
     {
-        xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+        AD5522_in();
         AD5522_SetOutputCurrent_float(&h_PMU, channel, param1);
-        xSemaphoreGive(semaphore_spi1);
+        AD5522_out();
     }
 
     return SCPI_RES_OK;
@@ -290,14 +292,14 @@ static scpi_result_t SMU_Channel1VoltageProtectionUpper(scpi_t * context) {
 	Vhigh = Vhigh>65535?65535:Vhigh;
 	Vhigh = Vhigh<0?0:Vhigh;
     
-    xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+    AD5522_in();
     AD5522_SetClamp(&h_PMU, channel,
         h_PMU.reg_DAC_CLL_I[ch_i][AD5522_DAC_REG_X1],
         h_PMU.reg_DAC_CLH_I[ch_i][AD5522_DAC_REG_X1],
         h_PMU.reg_DAC_CLL_V[ch_i][AD5522_DAC_REG_X1],
         (uint16_t)Vhigh,
         h_PMU.i_range);
-    xSemaphoreGive(semaphore_spi1);
+    AD5522_out();
     return SCPI_RES_OK;
 }
 
@@ -328,14 +330,14 @@ static scpi_result_t SMU_Channel1VoltageProtectionLower(scpi_t * context) {
 	Vlow = Vlow>65535?65535:Vlow;
 	Vlow = Vlow<0?0:Vlow;
     
-    xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+    AD5522_in();
     AD5522_SetClamp(&h_PMU, channel,
         h_PMU.reg_DAC_CLL_I[ch_i][AD5522_DAC_REG_X1],
         h_PMU.reg_DAC_CLH_I[ch_i][AD5522_DAC_REG_X1],
         (uint16_t)Vlow,
         h_PMU.reg_DAC_CLH_V[ch_i][AD5522_DAC_REG_X1],
         h_PMU.i_range);
-    xSemaphoreGive(semaphore_spi1);
+    AD5522_out();
     return SCPI_RES_OK;
 }
 
@@ -368,14 +370,14 @@ static scpi_result_t SMU_Channel1CurrentProtectionUpper(scpi_t * context) {
 	Ihigh = Ihigh>65535?65535:Ihigh;
 	Ihigh = Ihigh<0?0:Ihigh;
     
-    xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+    AD5522_in();
     AD5522_SetClamp(&h_PMU, channel,
         h_PMU.reg_DAC_CLL_I[ch_i][AD5522_DAC_REG_X1],
         (uint16_t)Ihigh,
         h_PMU.reg_DAC_CLL_V[ch_i][AD5522_DAC_REG_X1],
         h_PMU.reg_DAC_CLH_V[ch_i][AD5522_DAC_REG_X1],
         h_PMU.i_range);
-    xSemaphoreGive(semaphore_spi1);
+    AD5522_out();
     return SCPI_RES_OK;
 }
 
@@ -410,14 +412,14 @@ static scpi_result_t SMU_Channel1CurrentProtectionLower(scpi_t * context) {
 	Ilow = Ilow>65535?65535:Ilow;
 	Ilow = Ilow<0?0:Ilow;
     
-    xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+    AD5522_in();
     AD5522_SetClamp(&h_PMU, channel,
 		(uint16_t)I_low,
         h_PMU.reg_DAC_CLH_I[ch_i][AD5522_DAC_REG_X1],
         h_PMU.reg_DAC_CLL_V[ch_i][AD5522_DAC_REG_X1],
         h_PMU.reg_DAC_CLH_V[ch_i][AD5522_DAC_REG_X1],
         h_PMU.i_range);
-    xSemaphoreGive(semaphore_spi1);
+    AD5522_out();
     return SCPI_RES_OK;
 }
 
@@ -449,9 +451,9 @@ static scpi_result_t SMU_Channel1FetchQ(scpi_t * context) {
 static scpi_result_t SMU_Calibrate(scpi_t * context) {
     printf(":Calibrate\r\n");
 
-    xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+    AD5522_in();
     AD5522_Calibrate(&h_PMU);
-    xSemaphoreGive(semaphore_spi1);
+    AD5522_out();
     return SCPI_RES_OK;
 }
 

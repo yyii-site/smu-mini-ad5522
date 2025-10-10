@@ -134,6 +134,15 @@ PUTCHAR_PROTOTYPE
 }
 
 handle_AD5522 h_PMU;
+void AD5522_in(void) {
+  xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
+  HAL_SPI_DeInit(&hspi1);
+  MX_SPI1_Init();
+}
+void AD5522_out(void) {
+  xSemaphoreGive(semaphore_spi1);
+}
+
 __IO uint16_t ADC_temp[5];
 __IO uint16_t ADC_cnt = 5;
 __IO uint16_t ADC_ptr = 0;
@@ -282,10 +291,9 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-  semaphore_scpi = xSemaphoreCreateBinary();
-  semaphore_spi1 = xSemaphoreCreateBinary();
-  xSemaphoreGive(semaphore_scpi);
-  xSemaphoreGive(semaphore_spi1);
+  semaphore_scpi = xSemaphoreCreateMutex();
+  semaphore_spi1 = xSemaphoreCreateMutex();
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -322,17 +330,16 @@ int main(void)
 
   
   //----------------------------AD5522 Init-----------------------------
-  xSemaphoreTake(semaphore_spi1, portMAX_DELAY);  //此处没有实际作用，仅为强调在任务开始调度的时候要使用 二进制信号量
   HAL_SPI_DeInit(&hspi1);
   MX_SPI1_Init();
   AD5522_init(&h_PMU,&hspi1,5.0);
   AD5522_Calibrate(&h_PMU);
-  AD5522_StartHiZMV(&h_PMU,PMU_CH_0|PMU_CH_1|PMU_CH_2|PMU_CH_3) ;//configure CH2/3 to monitor voltage only
+  AD5522_StartHiZMV(&h_PMU,PMU_CH_1|PMU_CH_2|PMU_CH_3) ;//configure CH2/3 to monitor voltage only
   // AD5522_SetClamp(&h_PMU,PMU_CH_0|PMU_CH_1,32767-30000,32767+30000,0,65535,PMU_DAC_SCALEID_EXT);
-  AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-80e-3,80e-3,-11.5,11.5,PMU_DAC_SCALEID_2MA);
-  // AD5522_StartFVMI(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_2MA); 
+  // AD5522_SetClamp_float(&h_PMU,PMU_CH_0|PMU_CH_1,-80e-3,80e-3,-11.5,11.5,PMU_DAC_SCALEID_2MA);
+  AD5522_StartFVMI(&h_PMU,PMU_CH_0,PMU_DAC_SCALEID_2MA); 
   // AD5522_StartFIMV(&h_PMU,PMU_CH_0|PMU_CH_1,PMU_DAC_SCALEID_200UA);
-  xSemaphoreGive(semaphore_spi1);
+  // AD5522_SetOutputVoltage_float(&h_PMU,PMU_CH_0,-1.2);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -455,7 +462,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;  // 非常重要! AD5522使用LOW; AD7190使用HIGH
   hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
   hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
@@ -625,37 +632,39 @@ void StartTask01(void *argument)
   uint32_t adc_buf_value = 0;
 
   //----------------------------AD7190 Init-----------------------------
-  xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
-  HAL_SPI_DeInit(&hspi1);
-  AD7190_SPI1_Init();
-  SPI_Send_Nop();
+  if (xSemaphoreTake(semaphore_spi1, portMAX_DELAY)) {
+    HAL_SPI_DeInit(&hspi1);
+    AD7190_SPI1_Init();
+    SPI_Send_Nop();
 
-  if (!AD7190_Init(&h_ad7190)) {
-    ;  // AD7190 init failed
+    if (!AD7190_Init(&h_ad7190)) {
+      ;  // AD7190 init failed
+    }
+    AD7190_RangeSetup(&h_ad7190, 1, AD7190_CONF_GAIN_1);  // ADC In unipolar 单极性0-5V
+    AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN1P_AINCOM);
+    AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN1P_AINCOM);
+    AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN2P_AINCOM);
+    AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN2P_AINCOM);
+    AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN3P_AINCOM);
+    AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN3P_AINCOM);
+    AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN4P_AINCOM);
+    AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN4P_AINCOM);
+    AD7190_ChannelSelectAll(&h_ad7190);
+    AD7190_ContinueMode_StatusAfterData(&h_ad7190);
+    AD7190_AutoContinueMode(&h_ad7190, true);
+    xSemaphoreGive(semaphore_spi1);
   }
-  AD7190_RangeSetup(&h_ad7190, 1, AD7190_CONF_GAIN_1);  // ADC In unipolar 单极性0-5V
-  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN1P_AINCOM);
-  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN1P_AINCOM);
-  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN2P_AINCOM);
-  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN2P_AINCOM);
-  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN3P_AINCOM);
-  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN3P_AINCOM);
-  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_ZERO, AD7190_CH_AIN4P_AINCOM);
-  AD7190_Calibrate(&h_ad7190, AD7190_MODE_CAL_INT_FULL, AD7190_CH_AIN4P_AINCOM);
-  AD7190_ChannelSelectAll(&h_ad7190);
-  AD7190_ContinueMode_StatusAfterData(&h_ad7190);
-  AD7190_AutoContinueMode(&h_ad7190, true);
-  xSemaphoreGive(semaphore_spi1);
 
   /* Infinite loop */
   for(;;)
   {
-    {
+    if (xSemaphoreTake(semaphore_spi1, portMAX_DELAY)) {
       HAL_GPIO_WritePin(GPIOB, LED4_Pin, GPIO_PIN_SET);
-      xSemaphoreTake(semaphore_spi1, portMAX_DELAY);
-      HAL_SPI_DeInit(&hspi1);
-      AD7190_SPI1_Init();
-      SPI_Send_Nop();
+      if (hspi1.Init.CLKPolarity != SPI_POLARITY_HIGH) { //减少重复初始化
+        HAL_SPI_DeInit(&hspi1);
+        AD7190_SPI1_Init();
+        SPI_Send_Nop();
+      }
       if (AD7190_ReadDataRegister(&h_ad7190, &adc_buf_channel, &adc_buf_value)) {
         ad7190_val[adc_buf_channel] = adc_buf_value;
       }
