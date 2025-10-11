@@ -42,10 +42,6 @@ MOSI（PA6） 通过一个 1k 的电阻连接到 ADC_READY_Pin（PB11）
 
 ### 已完成
 
-* Stm32 和 AD5522 通讯， 将 AD5522 的 CH_0 CH_1 设置为 FVMI 模式输出电压5V。反馈 SL 接 GND，SH 接 FH。测量 GND 和 FH 之间的电压（未校准）。
-
-![test_FVMI_5V](Document/img/test_FVMI_5V.jpg)
-
 * Stm32 和 AD7190 通讯，可以读取到 AD7190 AIN1 对 AINCOM 的 AD 值。
 
 * 依次与 AD5522 和 AD7190 两个芯片通讯
@@ -62,9 +58,9 @@ SCPI 库的 libscpi/inc/scpi/config.h 使用 `#define SCPIDEFINE_doubleToStr(v, 
 
 * SCPI 通讯任务和 AD7190 任务均会使用 SPI1，所以使用互斥信号量，保护共享资源。
 
-* 可通过[上位机软件](https://github.com/yyii-site/smu-mini-qml)设置 CH0 的目标电压，读取 AD7190 的测量值
+* 可在[上位机软件](https://github.com/yyii-site/smu-mini-qml)通过SCPI指令设置 CH0 的目标电压，读取 AD7190 的测量值
 
-
+![qml_FVMI_3V](Document/img/qml_FVMI_3V.jpg)
 
 ### 待开发
 
