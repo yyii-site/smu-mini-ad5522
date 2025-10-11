@@ -129,7 +129,7 @@ void Callback01(void *argument);
 
 PUTCHAR_PROTOTYPE
 {
-  HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+  // HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
   return ch;
 }
 
@@ -142,14 +142,6 @@ void AD5522_in(void) {
 void AD5522_out(void) {
   xSemaphoreGive(semaphore_spi1);
 }
-
-__IO uint16_t ADC_temp[5];
-__IO uint16_t ADC_cnt = 5;
-__IO uint16_t ADC_ptr = 0;
-
-double input_range[2] = {0,3.3/3.3*65535};
-double output_Irange[2] = {-150e-6,150e-6};
-double output_Vrange[2] = {0,0.6};
 
 // 将 clk 的电平切换到 High
 void SPI_Send_Nop() {
