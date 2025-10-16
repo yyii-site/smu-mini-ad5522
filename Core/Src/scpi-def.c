@@ -165,21 +165,36 @@ static scpi_result_t SMU_CHANnel0Function(scpi_t * context) {
 
 static scpi_result_t SMU_CHANnel0FunctionQ(scpi_t * context) {
     uint8_t channel = 0;
+    char force[5] = {0};
+    char measure[5] = {0};
     printf("ch0:func?\r\n");
     uint32_t pmu = h_PMU.reg_pmu[channel];
-    if ((pmu & PMU_PMUREG_HZI) && (pmu & PMU_PMUREG_MEAS_V)) {
-        SCPI_ResultText(context, "HIZMV");
-    } else if ((pmu & PMU_PMUREG_FVCI) && (pmu & PMU_PMUREG_MEAS_I)) {
-        SCPI_ResultText(context, "FVMI");
-    } else if ((pmu & PMU_PMUREG_FICV) && (pmu & PMU_PMUREG_MEAS_V)) {
-        SCPI_ResultText(context, "FIMV");
-    } else if ((pmu & PMU_PMUREG_FVCI) && (pmu & PMU_PMUREG_MEAS_V)) {
-        SCPI_ResultText(context, "FVMV");
-    } else if ((pmu & PMU_PMUREG_FICV) && (pmu & PMU_PMUREG_MEAS_I)) {
-        SCPI_ResultText(context, "FIMI");
-    } else {
-        SCPI_ResultText(context, "Null");
-    }
+    
+    uint32_t buf = pmu&(0x11<<19);
+    if (buf == PMU_PMUREG_FVCI) {
+        strcpy(force, "FV");
+    } else if (buf == PMU_PMUREG_FICV) {
+        strcpy(force, "FI");
+    } else if (buf == PMU_PMUREG_HZV) {
+        strcpy(force, "HZV");
+    } else if (buf == PMU_PMUREG_HZI){
+        strcpy(force, "HZI");
+    };
+
+    buf = pmu&(0x11<<13);
+    if (buf == PMU_PMUREG_MEAS_I) {
+        strcpy(measure, "MI");
+    } else if (buf == PMU_PMUREG_MEAS_V) {
+        strcpy(measure, "MV");
+    } else if (buf == PMU_PMUREG_MEAS_TEMP) {
+        strcpy(measure, "MT");
+    } else if (buf == PMU_PMUREG_MEAS_HZ){
+        strcpy(measure, "MHZ");
+    };
+
+    char result[10] = {0};
+    snprintf(result, sizeof(result), "%s%s", force, measure);
+    SCPI_ResultText(context, result);
     return SCPI_RES_OK;
 }
 
@@ -268,7 +283,7 @@ static scpi_result_t SMU_CHANnel0CurrentLevelQ(scpi_t * context) {
     printf("ch0:Curr:Level?\r\n");
 
     uint32_t I_level = h_PMU.reg_DAC_FIN_I[ch_i][h_PMU.i_range][AD5522_DAC_REG_X1];
-	float MI_gain = 5;
+	float MI_gain = 10;
     float vref = h_PMU.vref;
 	float Rsense = h_PMU.Rsense;
     double Ilevel = 4.5 * vref * ((I_level - 32768.0)/pow(2,16))/(Rsense*MI_gain);
@@ -362,7 +377,7 @@ static scpi_result_t SMU_CHANnel0CurrentProtectionUpper(scpi_t * context) {
     if (!SCPI_ParamDouble(context, &param1, TRUE)) {
         return SCPI_RES_ERR;
     }
-	float MI_gain = 5;
+	float MI_gain = 10;
 	float vref  = h_PMU.vref;
 	float Rsense = h_PMU.Rsense;
     double I_high = param1;
@@ -386,7 +401,7 @@ static scpi_result_t SMU_CHANnel0CurrentProtectionUpperQ(scpi_t * context) {
 	uint8_t ch_i = 0;
     printf("ch0:Curr:UpperQ?\r\n");
     uint32_t Ihigh = h_PMU.reg_DAC_CLH_I[ch_i][AD5522_DAC_REG_X1];
-	float MI_gain = 5;
+	float MI_gain = 10;
     float vref = h_PMU.vref;
 	float Rsense = h_PMU.Rsense;
     double i_level = (Ihigh-32768)*1.0/pow(2,16)*vref*4.5/MI_gain/Rsense;
@@ -404,7 +419,7 @@ static scpi_result_t SMU_CHANnel0CurrentProtectionLower(scpi_t * context) {
     if (!SCPI_ParamDouble(context, &param1, TRUE)) {
         return SCPI_RES_ERR;
     }
-    float MI_gain = 5;
+    float MI_gain = 10;
 	float vref  = h_PMU.vref;
 	float Rsense = h_PMU.Rsense;
     double I_low = param1;
@@ -428,7 +443,7 @@ static scpi_result_t SMU_CHANnel0CurrentProtectionLowerQ(scpi_t * context) {
     uint8_t ch_i = 0;
     printf("ch0:Curr:LowerQ?\r\n");
     uint32_t Ilow = h_PMU.reg_DAC_CLL_V[ch_i][AD5522_DAC_REG_X1];
-    float MI_gain = 5;
+    float MI_gain = 10;
     float vref = h_PMU.vref;
 	float Rsense = h_PMU.Rsense;
     double i_level = (Ilow-32768.0)/pow(2,16)*vref*4.5/MI_gain/Rsense;
@@ -440,7 +455,7 @@ static scpi_result_t SMU_CHANnel0CurrentProtectionLowerQ(scpi_t * context) {
 static scpi_result_t SMU_CHANnel0FetchQ(scpi_t * context) {
     char msg[64];
     printf("ch0:FetchQ?\r\n");
-    // float MI_gain = 5;
+    // float MI_gain = 10;
     // float vref = h_PMU.vref;
 	// float Rsense = h_PMU.Rsense;
 
