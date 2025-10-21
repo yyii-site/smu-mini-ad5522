@@ -19,7 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
-#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -53,9 +52,6 @@ SPI_HandleTypeDef hspi1;
 UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
 
-SemaphoreHandle_t semaphore_scpi;
-SemaphoreHandle_t semaphore_spi1;
-
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
@@ -70,23 +66,12 @@ const osThreadAttr_t myTask01_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
-/* Definitions for myTimer01 */
-osTimerId_t myTimer01Handle;
-const osTimerAttr_t myTimer01_attributes = {
-  .name = "myTimer01"
-};
 /* USER CODE BEGIN PV */
+SemaphoreHandle_t semaphore_scpi;
+SemaphoreHandle_t semaphore_spi1;
+
 static void AD7190_SPI1_Init(void)
 {
-
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
@@ -103,10 +88,6 @@ static void AD7190_SPI1_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
-
 }
 /* USER CODE END PV */
 
@@ -118,7 +99,6 @@ static void MX_SPI1_Init(void);
 static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void *argument);
 void StartTask01(void *argument);
-void Callback01(void *argument);
 
 /* USER CODE BEGIN PFP */
 #ifdef __GNUC__
@@ -196,10 +176,8 @@ AD7190_SpiDriver_Typedef h_ad7190 = {
   .AD7190_Delay_ms = AD7190_Delay_ms
 };
 uint32_t ad7190_val[4];
-/* USER CODE END PFP */
 
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
+
 uint8_t uart1_tx_buf[UART_BUF_SIZE];
 uint8_t uart1_rx_buf[UART_BUF_SIZE];
 
@@ -273,6 +251,11 @@ scpi_result_t SCPI_SystemCommTcpipControlQ(scpi_t * context) {
 
     return SCPI_RES_ERR;
 }
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+
 /* USER CODE END 0 */
 
 /**
@@ -285,7 +268,6 @@ int main(void)
   /* USER CODE BEGIN 1 */
   semaphore_scpi = xSemaphoreCreateMutex();
   semaphore_spi1 = xSemaphoreCreateMutex();
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -345,10 +327,6 @@ int main(void)
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
-  /* Create the timer(s) */
-  /* creation of myTimer01 */
-  myTimer01Handle = osTimerNew(Callback01, osTimerPeriodic, NULL, &myTimer01_attributes);
-
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
@@ -396,7 +374,6 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
@@ -426,12 +403,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB;
-  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
-    Error_Handler();
-  }
 }
 
 /**
@@ -454,7 +425,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;  // 非常重要! AD5522使用LOW; AD7190使用HIGH
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;   // 非常重要! AD5522使用LOW; AD7190使用HIGH
   hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
   hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
@@ -540,7 +511,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, SMU_CS_Pin|ADC_CS_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOC, SMU_CS_Pin|ADC_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LED3_Pin|LED4_Pin|LED5_Pin, GPIO_PIN_RESET);
@@ -583,8 +554,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
 {
-  /* init code for USB_DEVICE */
-  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
   uint16_t readsize;
   SCPI_Init(&scpi_context,
@@ -605,7 +574,7 @@ void StartDefaultTask(void *argument)
       xSemaphoreGive(semaphore_scpi);
       HAL_GPIO_WritePin(GPIOB, LED5_Pin, GPIO_PIN_RESET);
     }
-    osDelay(10);
+    osDelay(1);
   }
   /* USER CODE END 5 */
 }
@@ -646,11 +615,10 @@ void StartTask01(void *argument)
     AD7190_AutoContinueMode(&h_ad7190, true);
     xSemaphoreGive(semaphore_spi1);
   }
-
   /* Infinite loop */
   for(;;)
   {
-    if (xSemaphoreTake(semaphore_spi1, portMAX_DELAY)) {
+        if (xSemaphoreTake(semaphore_spi1, portMAX_DELAY)) {
       HAL_GPIO_WritePin(GPIOB, LED4_Pin, GPIO_PIN_SET);
       if (hspi1.Init.CLKPolarity != SPI_POLARITY_HIGH) { //减少重复初始化
         HAL_SPI_DeInit(&hspi1);
@@ -666,14 +634,6 @@ void StartTask01(void *argument)
     osDelay(12);
   }
   /* USER CODE END StartTask01 */
-}
-
-/* Callback01 function */
-void Callback01(void *argument)
-{
-  /* USER CODE BEGIN Callback01 */
-
-  /* USER CODE END Callback01 */
 }
 
 /**
