@@ -1,25 +1,29 @@
 #include "AD5522.h"
 #include "main.h"
 #include "math.h"
+#include <stdint.h>
 
-void SetRsense(handle_AD5522* h,uint32_t IscaleID)
+void SetRsense(handle_AD5522* h, uint8_t ch_num, uint32_t IscaleID)
 {
+	if (ch_num >= 4) {
+		return;
+	}
 	switch(IscaleID)
 	{
 		case PMU_DAC_SCALEID_5UA:
-			h->Rsense = 200e3;
+			h->Rsense[ch_num] = 200e3;
 			break;
 		case PMU_DAC_SCALEID_20UA:
-			h->Rsense = 50e3;
+			h->Rsense[ch_num] = 50e3;
 			break;
 		case PMU_DAC_SCALEID_200UA:
-			h->Rsense = 5e3;
+			h->Rsense[ch_num] = 5e3;
 			break;
 		case PMU_DAC_SCALEID_2MA:
-			h->Rsense = 500;
+			h->Rsense[ch_num] = 500;
 			break;
 		case PMU_DAC_SCALEID_EXT:
-			h->Rsense = 20;
+			h->Rsense[ch_num] = 20;
 			break;
 	}
 }
@@ -110,14 +114,21 @@ int AD5522_SetPMU(handle_AD5522* h,__IO uint32_t channel,__IO uint32_t cmd)
 
 int AD5522_SetClamp(handle_AD5522* h,__IO uint32_t channel,__IO uint16_t I_low,__IO uint16_t I_high,__IO uint16_t V_low,__IO uint16_t V_high,__IO uint8_t I_range)
 {
-	I_range&=0x07;
-	h->i_range=I_range;
-	//set I_range
-	SetRsense(h,I_range);
 	//Check input integraty
 	if((V_low>=V_high)|(I_low>=I_high))
 	{
 		return -1;
+	}
+
+	for(int i=0;i<4;i++)
+	{
+		if((channel&(PMU_CH_0<<i))!=0)
+		{
+			I_range&=0x07;
+			h->i_range[i]=I_range;
+			//set I_range
+			SetRsense(h,i,I_range);
+		}
 	}
 
 	AD5522_WriteReg(h,channel|PMU_DACREG_ADDR_CLL_V_X1|V_low);
@@ -144,27 +155,39 @@ int AD5522_SetClamp(handle_AD5522* h,__IO uint32_t channel,__IO uint16_t I_low,_
 	}
 
 	
-	for(int i=0;i<4;i++)
-	{
-		if((channel&(PMU_CH_0<<i))!=0)
-		{
-			//configure PMU
-			__IO uint32_t cmd = h->reg_pmu[i];
-			cmd&=~(PMU_CH_0|PMU_CH_1|PMU_CH_2|PMU_CH_3); // Clear channel selection
-			cmd|=(PMU_CH_0<<i);
-			cmd|=PMU_PMUREG_CL;
-			AD5522_SetPMU(h,PMU_CH_0<<i,cmd);
-		}
-	}
+	// for(int i=0;i<4;i++)
+	// {
+	// 	if((channel&(PMU_CH_0<<i))!=0)
+	// 	{
+	// 		//configure PMU
+	// 		__IO uint32_t cmd = h->reg_pmu[i];
+	// 		cmd&=~(PMU_CH_0|PMU_CH_1|PMU_CH_2|PMU_CH_3); // Clear channel selection
+	// 		cmd|=(PMU_CH_0<<i);
+	// 		cmd|=PMU_PMUREG_CL;
+	// 		AD5522_SetPMU(h,PMU_CH_0<<i,cmd);
+	// 	}
+	// }
 	return 0;
 }
 
 int AD5522_SetClamp_float(handle_AD5522* h,__IO uint32_t channel,__IO float I_low,__IO float I_high,__IO float V_low,__IO float V_high,__IO uint8_t I_range)
 {
-	I_range&=0x07;
-	h->i_range=I_range;
-	//set I_range
-	SetRsense(h,I_range);
+	uint8_t ch_num = 0;
+	if((V_low>=V_high)|(I_low>=I_high))
+	{
+		return -1;
+	}
+	for(int i=0;i<4;i++)
+	{
+		if((channel&(PMU_CH_0<<i))!=0)
+		{
+			ch_num = i;
+			I_range&=0x07;
+			h->i_range[i]=I_range;
+			//set I_range
+			SetRsense(h,i,I_range);
+		}
+	}
 	
 	float vref  = h->vref;
 	double Ilow,Ihigh,Vlow,Vhigh;
@@ -178,7 +201,7 @@ int AD5522_SetClamp_float(handle_AD5522* h,__IO uint32_t channel,__IO float I_lo
 	Vhigh = Vhigh<0?0:Vhigh;
 
 	float MI_gain = 10;
-	float Rsense = h->Rsense;
+	float Rsense = h->Rsense[ch_num];
 	//FI = 4.5 * vref * ((value - 32768)/2^16)/(Rsense*MI_amplifier_Gain)
 	Ilow=((I_low*Rsense*MI_gain)/4.5/vref)*pow(2,16) + 32768;
 	Ilow = Ilow>65535?65535:Ilow;
@@ -316,13 +339,18 @@ int AD5522_StartHiZMV(handle_AD5522* h,__IO uint32_t channel)
 
 int AD5522_StartFVMI(handle_AD5522* h,__IO uint32_t channel,__IO uint8_t I_range)
 {
-	I_range&=0x07;
-	h->i_range=I_range;
+	for(int i=0;i<4;i++)
+	{
+		if((channel&(PMU_CH_0<<i))!=0)
+		{
+			I_range&=0x07;
+			h->i_range[i]=I_range;
+			//set I_range
+			SetRsense(h,i,I_range);
+		}
+	}
 	//Configure DAC
 	AD5522_SetOutputVoltage(h,channel,32768);
-	
-	//set I_range
-	SetRsense(h,I_range);
 	
 	//configure PMU
 	for(int i=0;i<4;i++)
@@ -341,13 +369,18 @@ int AD5522_StartFVMI(handle_AD5522* h,__IO uint32_t channel,__IO uint8_t I_range
 }
 int AD5522_StartFIMV(handle_AD5522* h,uint32_t channel,uint8_t I_range)
 {
-	I_range&=0x07;
-	h->i_range=I_range;
+	for(int i=0;i<4;i++)
+	{
+		if((channel&(PMU_CH_0<<i))!=0)
+		{
+			I_range&=0x07;
+			h->i_range[i]=I_range;
+			//set I_range
+			SetRsense(h,i,I_range);
+		}
+	}
 	//Configure DAC
 	AD5522_SetOutputCurrent(h,channel,32768);
-	
-	//set I_range
-	SetRsense(h,I_range);
 	
 	//configure PMU
 	for(int i=0;i<4;i++)
@@ -369,10 +402,16 @@ int AD5522_StartFVMV(handle_AD5522* h,__IO uint32_t channel,__IO uint8_t I_range
 {
 	//Configure SYS
 	uint32_t cmd=0;
-	I_range&=0x07;
-	h->i_range=I_range;
-	//set I_range
-	SetRsense(h,I_range);
+	for(int i=0;i<4;i++)
+	{
+		if((channel&(PMU_CH_0<<i))!=0)
+		{
+			I_range&=0x07;
+			h->i_range[i]=I_range;
+			//set I_range
+			SetRsense(h,i,I_range);
+		}
+	}
 	//Configure DAC
 	AD5522_SetOutputVoltage(h,channel,32768);
 	//configure PMU
@@ -394,11 +433,16 @@ int AD5522_StartFIMI(handle_AD5522* h,uint32_t channel,uint8_t I_range)
 {
 	//Configure SYS
 	uint32_t cmd=0;
-	I_range&=0x07;
-	h->i_range=I_range;
-
-	//set I_range
-	SetRsense(h,I_range);
+	for(int i=0;i<4;i++)
+	{
+		if((channel&(PMU_CH_0<<i))!=0)
+		{
+			I_range&=0x07;
+			h->i_range[i]=I_range;
+			//set I_range
+			SetRsense(h,i,I_range);
+		}
+	}
 	
 	//Configure DAC
 	AD5522_SetOutputCurrent(h,channel,32768);
@@ -433,13 +477,13 @@ int AD5522_SetOutputVoltage(handle_AD5522* h,uint32_t channel,uint16_t voltage)
 int AD5522_SetOutputCurrent(handle_AD5522* h,uint32_t channel,uint16_t current)
 {
 	uint32_t reg_base=0x08; //base for current 5uA current DAC(base offset)
-	reg_base=(reg_base+h->i_range)<<16; //get base addr for I dac of the selected I range
-	reg_base|=PMU_MODE_DATAREG;
 	for(int i=0;i<4;i++)
 	{
+		reg_base=(reg_base+h->i_range[i])<<16; //get base addr for I dac of the selected I range
+		reg_base|=PMU_MODE_DATAREG;
 		if((channel&(PMU_CH_0<<i))!=0)
 		{
-			h->reg_DAC_FIN_I[i][h->i_range][AD5522_DAC_REG_X1] = current;  //CH DAC_ADDRID DAC_SCALE_ID M_C_X1
+			h->reg_DAC_FIN_I[i][h->i_range[i]][AD5522_DAC_REG_X1] = current;  //CH DAC_ADDRID DAC_SCALE_ID M_C_X1
 		}
 	}
 	AD5522_WriteReg(h,channel|reg_base|current);
@@ -459,10 +503,18 @@ int AD5522_SetOutputVoltage_float(handle_AD5522* h,__IO uint32_t channel,__IO do
 }
 int AD5522_SetOutputCurrent_float(handle_AD5522* h,__IO uint32_t channel,__IO double current)
 {
+	uint8_t ch_num = 0;
+	for(int i=0;i<4;i++)
+	{
+		if((channel&(PMU_CH_0<<i))!=0)
+		{
+			ch_num = i;
+		}
+	}
 	float vref  = h->vref;
 	double i_level;
 	float MI_gain = 10;
-	float Rsense = h->Rsense;
+	float Rsense = h->Rsense[ch_num];
 	//FI = 4.5 * vref * ((value - 32768)/2^16)/(Rsense*MI_amplifier_Gain)
 	i_level=2*((1.0*current*Rsense*MI_gain)/4.5/vref)*pow(2,16) + 32768;
 	i_level = i_level>65535?65535:i_level;

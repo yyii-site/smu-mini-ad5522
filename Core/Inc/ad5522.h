@@ -160,7 +160,7 @@ typedef struct
 	__IO uint32_t reg_DAC_CPH_I[4][5][3]; 
 	__IO uint32_t reg_DAC_CPH_V[4][3]; 	
 	__IO uint32_t v_measure[4];
-	__IO uint32_t i_range;
+	__IO uint32_t i_range[4];
 	__IO uint32_t state[4];
 	__IO uint32_t reg_sys;
 	__IO uint32_t reg_pmu[4];
@@ -170,7 +170,7 @@ typedef struct
 	uint16_t DAC_offset;
 	uint16_t M_common;
 	uint16_t C_common;
-	float Rsense;
+	float Rsense[4];
 	SPI_HandleTypeDef* hspi;
 }handle_AD5522;
 int AD5522_init(handle_AD5522* h, SPI_HandleTypeDef* hspi,float vref);

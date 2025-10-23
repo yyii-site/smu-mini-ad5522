@@ -1,49 +1,55 @@
-1.输出设置(用来关闭)
-[:CHANnel<n>]:OUTPut
-参数 1开/0关
-:CHAN2:OUTP 1
-:CHANnel1:OUTPut ON
+支持通道 0/1/2/3
 
-输出查询
-:CHAN1：OUTP:STAT?
-
-
-2.设置源功能
+1.设置源功能和电流范围
 [:CHANnel<n>]:FUNCtion
 参数  HIZMV/FVMI/FIMV/FVMV/FIMI
 
 例子
-:CHANnel1:FUNCtion "FVMI"
+:CHANnel0:FUNCtion "FVMI"
 3A 43 48 41 4E 6E 65 6C 31 3A 46 55 4E 43 74 69 6F 6E 20 22 46 56 4D 49 22 0A
 
+设置源功能同时设置电流范围
+:CHANnel0:FUNCtion "FVMI",0.002
+3A 43 48 41 4E 6E 65 6C 30 3A 46 55 4E 43 74 69 6F 6E 20 22 46 56 4D 49 22 2C 30 2E 30 30 32 0A 
+
 查询
-:CHANnel1:FUNCtion?
+:CHANnel0:FUNCtion?
 3A 43 48 41 4E 6E 65 6C 31 3A 46 55 4E 43 74 69 6F 6E 3F 0A
 
 
-3.设置电流范围
-例子
-:CHANnel1:CURRent:RANGe 2e-3
+2.电流范围
+查询
+:CHANnel0:CURRent:RANGe?
+
+3.目标电压
+设置
+:CHANnel0:VOLTage:LEVel -1.2
+查询
+:CHANnel0:VOLTage:LEVel?
+
+4.目标电流
+:CHANnel0:CURRent:LEVel 0.001
+:CHANnel0:CURRent:LEVel?
+
+5.电压钳位
+:CHANnel0:VOLTage:PROTection:UPPer 11.0
+:CHANnel0:VOLTage:PROTection:LOWer -11.0
 
 查询
-:CHANnel1:CURRent:RANGe?
+:CHANnel0:VOLTage:PROTection:UPPer?
+:CHANnel0:VOLTage:PROTection:LOWer?
 
-4.电压钳位
-:CHANnel1:VOLTage:PROTection:UPPer 11.0
-:CHANnel1:VOLTage:PROTection:LOWer -11.0
-
-查询
-:CHANnel1:VOLTage:PROTection:UPPer?
-:CHANnel1:VOLTage:PROTection:LOWer?
-
-5.电流钳位
-:CHANnel1:CURRent:PROTection:UPPer 2-e3
-:CHANnel1:CURRent:PROTection:LOWer -2e-3
+6.电流钳位
+:CHANnel0:CURRent:PROTection:UPPer 2-e3
+:CHANnel0:CURRent:PROTection:LOWer -2e-3
 
 查询
-:CHANnel1:CURRent:PROTection:UPPer?
-:CHANnel1:CURRent:PROTection:LOWer?
+:CHANnel0:CURRent:PROTection:UPPer?
+:CHANnel0:CURRent:PROTection:LOWer?
 
+
+7.便利查询
+FETCh?
 
 6.自校准
-:Calibrate
+Calibrate
