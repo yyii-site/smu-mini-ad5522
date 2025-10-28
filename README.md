@@ -76,6 +76,8 @@ SCPI 库的 libscpi/inc/scpi/config.h 使用 `#define SCPIDEFINE_doubleToStr(v, 
 
 * 校准
 
+* 电压零点偏差 2.5V 的问题
+
 
 ## 感谢
 

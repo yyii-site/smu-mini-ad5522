@@ -183,7 +183,8 @@ static void readSmuFunction(uint8_t ch_i, char *mode, uint8_t modeSize) {
 
     uint32_t pmu = h_PMU.reg_pmu[ch_i];
     
-    uint32_t buf = pmu&(0x11<<19);
+    uint32_t buf = pmu;
+    buf &= (0x03<<19);
     if (buf == PMU_PMUREG_FVCI) {
         strcpy(force, "FV");
     } else if (buf == PMU_PMUREG_FICV) {
@@ -194,7 +195,8 @@ static void readSmuFunction(uint8_t ch_i, char *mode, uint8_t modeSize) {
         strcpy(force, "HZI");
     };
 
-    buf = pmu&(0x11<<13);
+    buf = pmu;
+    buf &= (0x03<<13);
     if (buf == PMU_PMUREG_MEAS_I) {
         strcpy(measure, "MI");
     } else if (buf == PMU_PMUREG_MEAS_V) {
@@ -584,7 +586,7 @@ static scpi_result_t SMU_CHANnel3CurrentProtectionLowerQ(scpi_t * context) {
 static scpi_result_t SMU_FetchQ(scpi_t * context) {
     char msg[128] = {0};
     char model[4][10] = {0};
-    printf("ch0:FetchQ?\r\n");
+    printf("FetchQ?\r\n");
     // float MI_gain = 10;
     // float vref = h_PMU.vref;
 	// float Rsense = h_PMU.Rsense;
