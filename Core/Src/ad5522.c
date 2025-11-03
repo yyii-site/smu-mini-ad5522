@@ -233,7 +233,6 @@ int AD5522_Calibrate(handle_AD5522* h)
 		value = M_common;
 		h->reg_DAC_FIN_V[i][AD5522_DAC_REG_M] = value;  
 		AD5522_WriteReg(h,channel|PMU_DACREG_ADDR_FIN_VOL_M|value);
-
 		value = C_common;
 		h->reg_DAC_FIN_V[i][AD5522_DAC_REG_C] = value;  
 		AD5522_WriteReg(h,channel|PMU_DACREG_ADDR_FIN_VOL_C|value);
@@ -476,17 +475,17 @@ int AD5522_SetOutputVoltage(handle_AD5522* h,uint32_t channel,uint16_t voltage)
 }
 int AD5522_SetOutputCurrent(handle_AD5522* h,uint32_t channel,uint16_t current)
 {
-	uint32_t reg_base=0x08; //base for current 5uA current DAC(base offset)
 	for(int i=0;i<4;i++)
 	{
+		uint32_t reg_base=0x08; //base for current 5uA current DAC(base offset)
 		reg_base=(reg_base+h->i_range[i])<<16; //get base addr for I dac of the selected I range
 		reg_base|=PMU_MODE_DATAREG;
 		if((channel&(PMU_CH_0<<i))!=0)
 		{
 			h->reg_DAC_FIN_I[i][h->i_range[i]][AD5522_DAC_REG_X1] = current;  //CH DAC_ADDRID DAC_SCALE_ID M_C_X1
+			AD5522_WriteReg(h,(PMU_CH_0<<i)|reg_base|current);
 		}
 	}
-	AD5522_WriteReg(h,channel|reg_base|current);
 	return 0;
 }
 
