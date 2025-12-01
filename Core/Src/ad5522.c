@@ -136,6 +136,7 @@ int AD5522_SetClamp(handle_AD5522* h,__IO uint32_t channel,__IO uint16_t I_low,_
 	AD5522_WriteReg(h,channel|PMU_DACREG_ADDR_CLL_I_X1|I_low);
 	AD5522_WriteReg(h,channel|PMU_DACREG_ADDR_CLH_I_X1|I_high);
 	
+	// FVMI 钳位的是电流
 	for(int i=0;i<4;i++)
 	{
 		if((channel&(PMU_CH_0<<i))!=0)
@@ -233,7 +234,7 @@ int AD5522_Calibrate(handle_AD5522* h)
 		value = M_common;
 		h->reg_DAC_FIN_V[i][AD5522_DAC_REG_M] = value;  
 		AD5522_WriteReg(h,channel|PMU_DACREG_ADDR_FIN_VOL_M|value);
-		value = C_common;
+		value = 32795; //C_common
 		h->reg_DAC_FIN_V[i][AD5522_DAC_REG_C] = value;  
 		AD5522_WriteReg(h,channel|PMU_DACREG_ADDR_FIN_VOL_C|value);
 		
@@ -515,7 +516,7 @@ int AD5522_SetOutputCurrent_float(handle_AD5522* h,__IO uint32_t channel,__IO do
 	float MI_gain = 10;
 	float Rsense = h->Rsense[ch_num];
 	//FI = 4.5 * vref * ((value - 32768)/2^16)/(Rsense*MI_amplifier_Gain)
-	i_level=2*((1.0*current*Rsense*MI_gain)/4.5/vref)*pow(2,16) + 32768;
+	i_level= ((1.0*current*Rsense*MI_gain)/4.5/vref)*pow(2,16) + 32768;
 	i_level = i_level>65535?65535:i_level;
 	i_level = i_level<0?0:i_level;
 	AD5522_SetOutputCurrent(h,channel,(uint16_t) i_level);
