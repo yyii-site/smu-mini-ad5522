@@ -2,6 +2,22 @@
 
 Quad-SMU 四通道参数测量单元
 
+问题：
+
+ad7190的MISO引脚复用为Ready信号，所以每次读取结果spi总线都会被Ready信号占用。如果通过spi总线轮询ad7190，又要因为ad7190和ad5522的spi参数不一样又要不停的改变spi总线参数。所以最好的办法是再加一个隔离芯片和spi总线，两个芯片都有单独的spi总线互不影响。
+
+ADC采样速度最高4.8kHz，如果4通道轮询采样，由于需要建立时间单个通道采样率只能到400Hz
+
+用qt写一个上位机软件，需要投入较多精力也不够灵活。
+
+下个版本：
+
+参考项目 https://gitlab.com/Chips4Makers/snowwhite/-/tree/master/designs/NLNet018TV/testing/AD5522/RaspberryPi?ref_type=heads 用树莓派做主控直接通过板载io与芯片通讯。jupyter 环境跑Python 代码，还实现校准功能。项目中的注视说部分功能稍慢想通过c来重写这部分功能。没有看到动态修改量程相关的功能(还是说并没有这种需求？)
+
+硬件调整：直接参考 ad5522 官方开发板原理图；主控改为stm32；通过USB和上位机通讯，将通讯引脚引出方便使用其他控制器。stm32 主要是扫描功能的时候不依赖上位机。到时看有没有必要同时支持spi指令透传和scpi标准仪器指令。
+
+---
+
 功能：
 
 电压驱动(FV)、电流驱动(FI)、高阻输出(FN)、测量电压(MV)、测量电流(MI) 
@@ -31,6 +47,8 @@ MOSI（PA6） 通过一个 1k 的电阻连接到 ADC_READY_Pin（PB11）
 ## 软件
 
 开发环境：`Windows` `VScode` `Stm32 VS Code Extension` 安装方式请参考 [st.com](https://www.st.com/content/st_com/en/campaigns/stm32-vs-code-extension-z11.html)
+
+或者 [Linux VScode](https://yyii-site.github.io/2026/07/29/%E5%9C%A8Archlinux%E4%B8%AD%E9%80%9A%E8%BF%87VSCode%E5%BC%80%E5%8F%91STM32-%E6%9E%81%E7%AE%80%E7%89%88/)
 
 依赖的软件有：STM32CubeMX STM32CubeCLT
 
